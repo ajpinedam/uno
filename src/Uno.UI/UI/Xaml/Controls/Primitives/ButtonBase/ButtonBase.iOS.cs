@@ -78,7 +78,7 @@ namespace Windows.UI.Xaml.Controls.Primitives
 						this.Log().Debug("AllTouchEvents, trigger OnPointerPressed");
 					}
 
-					OnPointerPressed(new PointerRoutedEventArgs { OriginalSource = this });
+					OnPointerPressed(new PointerRoutedEventArgs(this));
 				}
 
 				void clickHandler(object e, EventArgs s)
