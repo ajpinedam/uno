@@ -1,0 +1,55 @@
+﻿using NUnit.Framework;
+using System;
+using System.Collections.Generic;
+using System.Drawing;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using Uno.UITest.Helpers;
+using Uno.UITest.Helpers.Queries;
+
+namespace SamplesApp.UITests.Windows_UI_Xaml_Controls.DatePickerTests
+{
+	[TestFixture]
+	public partial class DatePickerTests_Tests : SampleControlUITestBase
+	{
+		[Test]
+		public void DatePickerFlyout_HasDataContextTest()
+		{
+			Run("UITests.Shared.Windows_UI_Xaml_Controls.DatePicker.DatePicker_SampleContent");
+
+			_app.WaitForElement(_app.Marked("theDatePicker"));
+
+			var theDatePicker = _app.Marked("theDatePicker");
+			var datePickerFlyout = theDatePicker.Child;
+
+			// Open flyout
+			theDatePicker.Tap();
+
+			//Assert
+			Assert.IsNotNull(theDatePicker.GetDependencyPropertyValue("DataContext"));
+			Assert.IsNotNull(datePickerFlyout.GetDependencyPropertyValue("DataContext"));
+		}
+
+		[Test]
+		public void DatePickerFlyout_HasContentTest()
+		{
+			Run("UITests.Shared.Windows_UI_Xaml_Controls.DatePicker.DatePicker_SampleContent");
+
+			_app.WaitForElement(_app.Marked("theDatePicker"));
+
+			var theDatePicker = _app.Marked("theDatePicker");
+			var datePickerFlyout = theDatePicker.Child;
+
+			// Open flyout
+			theDatePicker.Tap();
+
+			//Assert
+			var myDevice = _app.Device.GetType();
+			if (_app.Device.GetType().Name.Contains("IOS"))
+			{
+				Assert.IsNotNull(datePickerFlyout.GetDependencyPropertyValue("Content"));
+			}
+		}
+	}
+}

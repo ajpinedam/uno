@@ -55,7 +55,7 @@ namespace SamplesApp.UITests.Windows_UI_Xaml_Controls.TimePickerTests
 		[Ignore("Not available yet")]
 		public void TimePickerFlyout_ApplyChanges()
 		{
-			Run("UITests.Shared.Windows_UI_Xaml_Controls.TimePicker.TimePicker_Automated");
+			Run("Uno.UI.Samples.Content.UITests.TimePicker.TimePicker_Automated");
 
 			_app.WaitForElement(_app.Marked("btnApplyNewTime"));
 
@@ -93,29 +93,29 @@ namespace SamplesApp.UITests.Windows_UI_Xaml_Controls.TimePickerTests
 		[Test]
 		public void TimePickerFlyout_HasDataContextTest()
 		{
-			Run("UITests.Shared.Windows_UI_Xaml_Controls.TimePicker.TimePicker_Automated");
+			Run("UITests.Shared.Windows_UI_Xaml_Controls.TimePicker.Sample2");
 
-			_app.WaitForElement(_app.Marked("btnApplyNewTime"));
+			_app.WaitForElement(_app.Marked("theTimePicker"));
 
-			var theTimePicker = _app.Marked("myTimePicker");
+			var theTimePicker = _app.Marked("theTimePicker");
 			var timePickerFlyout = theTimePicker.Child;
 
 			// Open flyout
 			theTimePicker.Tap();
 
 			//Assert
-			Assert.AreNotEqual("Null", theTimePicker.GetDependencyPropertyValue("DataContext")?.ToString());
-			Assert.AreNotEqual("Null", timePickerFlyout.GetDependencyPropertyValue("DataContext")?.ToString());
+			Assert.IsNotNull(theTimePicker.GetDependencyPropertyValue("DataContext"));
+			Assert.IsNotNull(timePickerFlyout.GetDependencyPropertyValue("DataContext"));
 		}
 
 		[Test]
 		public void TimePickerFlyout_HasContentTest()
 		{
-			Run("UITests.Shared.Windows_UI_Xaml_Controls.TimePicker.TimePicker_Automated");
+			Run("UITests.Shared.Windows_UI_Xaml_Controls.TimePicker.Sample2");
 
-			_app.WaitForElement(_app.Marked("btnApplyNewTime"));
+			_app.WaitForElement(_app.Marked("theTimePicker"));
 
-			var theTimePicker = _app.Marked("myTimePicker");
+			var theTimePicker = _app.Marked("theTimePicker");
 			var timePickerFlyout = theTimePicker.Child;
 
 			// Open flyout
@@ -125,7 +125,7 @@ namespace SamplesApp.UITests.Windows_UI_Xaml_Controls.TimePickerTests
 			var myDevice = _app.Device.GetType();
 			if (_app.Device.GetType().Name.Contains("IOS"))
 			{
-				Assert.AreNotEqual("Null", timePickerFlyout.GetDependencyPropertyValue("Content")?.ToString());
+				Assert.IsNotNull(timePickerFlyout.GetDependencyPropertyValue("Content"));
 			}
 		}
 	}

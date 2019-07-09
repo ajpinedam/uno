@@ -1,4 +1,4 @@
-﻿<Page x:Class="SamplesApp.Samples.TimePicker.Sample2"
+﻿<Page x:Class="UITests.Shared.Windows_UI_Xaml_Controls.TimePicker.Sample2"
       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       xmlns:local="using:ControlTests"
@@ -30,6 +30,7 @@
                             Style="{StaticResource FlatButtonStyle}" />
 
 					<TimePicker Grid.Row="1"
+								x:Name="theTimePicker"
                                 Margin="15,10"
                                 Style="{StaticResource FlatTimePickerStyle}"
                                 ios:FlyoutPlacement="Full"

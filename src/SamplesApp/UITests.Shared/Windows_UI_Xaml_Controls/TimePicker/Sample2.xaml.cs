@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices.WindowsRuntime;
-using SamplesApp.Windows_UI_Xaml_Controls.Models;
+using UITests.Shared.Windows_UI_Xaml_Controls.TimePicker.Model;
 using Uno.UI.Samples.Controls;
 using Windows.Foundation;
 using Windows.Foundation.Collections;
