@@ -21,6 +21,8 @@
     ```
   - `FrameworkElement.RequestedTheme ` is ignored for now.
   - Should be set when the application is starting (before first request to a static resource).
+* Prevent possible crash with `MediaPlayerElement` (tentative)
+* Add support for `ContentDialog`
 
 ### Breaking changes
 *
@@ -34,6 +36,7 @@
 * [Android/iOS] Fixed generated x:uid setter not globalized for Uno.UI.Helpers.MarkupHelper.SetXUid and Uno.UI.FrameworkElementHelper.SetRenderPhase
 * Fix invalid XAML x:Uid parsing with resource file name and prefix (#1130, #228)
 * Fixed an issue where a Two-Way binding would sometimes not update values back to source correctly
+* Adjust the behavior of `DisplayInformation.LogicalDpi` to match UWP's behavior
 
 ## Release 1.45.0
 ### Features
