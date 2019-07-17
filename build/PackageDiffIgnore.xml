@@ -239,12 +239,28 @@
 				reason="Removed no-longer-needed override. Uno-only protected method that shouldn't be called by user code."/>
         <Member fullName="Windows.UI.Xaml.Controls.Popup Windows.UI.Xaml.Controls.ComboBoxItem.GetPopupControl()"
 				reason="Removed no-longer-needed method. Implementation detail."/>
+
+		<Member fullName="System.Void Windows.UI.Input.PointerPointProperties..ctor()"
+				reason="Invalid visibility."/>
+		<Member fullName="System.Void Windows.Devices.Input.PointerDevice..ctor()"
+				reason="Invalid visibility."/>
+		<Member fullName="Windows.Foundation.Point Windows.UI.Xaml.Input.PointerRoutedEventArgs.GetCurrentPoint()"
+				reason="Method was missing a required parameter"/>
+		<Member fullName="Windows.Foundation.Point[] Windows.UI.Xaml.Input.PointerRoutedEventArgs.GetIntermediatePoints()"
+				reason="Method was missing a required parameter"/>
 	  </Methods>
 	  
       <Fields>
-        <Member fullName="Windows.UI.Xaml.TextWrapping Windows.UI.Xaml.TextWrapping::WordEllipsis"
-                reason="Invalid enum value"/>
-      </Fields>
+		<Member fullName="Windows.UI.Xaml.TextWrapping Windows.UI.Xaml.TextWrapping::WordEllipsis"
+				reason="Invalid enum value"/>
+
+		<Member fullName="System.Int32 Windows.UI.Input.GestureSettings::value__"
+				reason="Enum was a int instead of uint like UWP"/>
+		<Member fullName="System.Int32 Windows.System.VirtualKeyModifiers::value__"
+				reason="Enum was a int instead of uint like UWP"/>
+		<Member fullName="System.Int32 Windows.UI.Xaml.Input.ManipulationModes::value__"
+				reason="Enum was a int instead of uint like UWP"/>
+	  </Fields>
 
       <Properties>
         <Member fullName="Windows.UI.Color Windows.UI.Xaml.Controls.ScrollViewer::BackgroundColor()"
