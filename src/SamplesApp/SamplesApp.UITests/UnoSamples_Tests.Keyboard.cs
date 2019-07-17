@@ -6,6 +6,7 @@ using System.Text;
 using System.Threading.Tasks;
 using NUnit.Framework;
 using SamplesApp.UITests;
+using SamplesApp.UITests.TestFramework;
 using Uno.UITest.Helpers;
 using Uno.UITest.Helpers.Queries;
 
@@ -15,6 +16,7 @@ namespace SamplesApp.UITests
 	partial class UnoSamples_Tests : SampleControlUITestBase
 	{
 		[Test]
+		[AutoRetry]
 		public void Keyboard_Textbox_InsideScrollViewer_Validation()
 		{
 			Run("Uno.UI.Samples.Content.UITests.TextBoxControl.Input_Test_InsideScrollerViewer_Automated");
@@ -110,6 +112,7 @@ namespace SamplesApp.UITests
 		}
 
 		[Test]
+		[AutoRetry]
 		public void Keyboard_Textbox_NoScrollViewer_Validation()
 		{
 			Run("Uno.UI.Samples.Content.UITests.TextBoxControl.Input_Test_NoScrollViewer_Automated");
@@ -205,6 +208,7 @@ namespace SamplesApp.UITests
 		}
 
 		[Test]
+		[AutoRetry]
 		public void Keyboard_Textbox_IsEnabled_Validation()
 		{
 			Run("Uno.UI.Samples.Content.UITests.TextBoxControl.Input_Test_InsideScrollerViewer_Automated");
@@ -247,6 +251,7 @@ namespace SamplesApp.UITests
 		}
 
 		[Test]
+		[AutoRetry]
 		public void TextBox_TextChanged()
 		{
 			Run("UITests.Shared.Windows_UI_Xaml_Controls.TextBoxTests.TextBox_TextChanged");
@@ -276,6 +281,7 @@ namespace SamplesApp.UITests
 		}
 
 		[Test]
+		[AutoRetry]
 		public void TextBox_PageLoadedTest()
 		{
 			Run("UITests.Shared.Windows_UI_Xaml_Controls.TextBoxTests.TextBox_TextChanged");
@@ -283,6 +289,80 @@ namespace SamplesApp.UITests
 			var appendOutput = _app.Marked("AppendTextBlock");
 
 			_app.WaitForElement(appendOutput);
+		}
+
+		[Test]
+		public void TextBox_TextChanging_Capitalize()
+		{
+			Run("UITests.Shared.Windows_UI_Xaml_Controls.TextBoxTests.TextBox_TextChanging");
+
+			var textBlock = _app.Marked("CapitalizePreviousTextBlock");
+
+			const string Entered = "This patience is a virtue";
+			const string Final = "THIS PATIENCE IS A VIRTue";
+
+			var textBox = TypeInto("CapitalizePreviousTextBox", Entered, Final);
+
+			Assert.AreEqual(Final, GetText(textBox));
+			Assert.AreEqual(Final, GetText(textBlock));
+		}
+
+		[Test]
+		public void TextBox_TextChanging_Limit()
+		{
+			Run("UITests.Shared.Windows_UI_Xaml_Controls.TextBoxTests.TextBox_TextChanging");
+
+			var textBlock = _app.Marked("LimitLengthTextBlock");
+
+			const string Entered = "abcdefghijklmnopqr";
+			const string Final = "defghijklmnopqr";
+
+			var textBox = TypeInto("LimitLengthTextBox", Entered, Final);
+
+			Assert.AreEqual(Final, GetText(textBox));
+			Assert.AreEqual(Final, GetText(textBlock));
+
+			_app.ClearText();
+
+			Assert.AreEqual("", GetText(textBox));
+			Assert.AreEqual("", GetText(textBlock));
+
+			const string Entered2 = "Any way the wind blows";
+			const string Final2 = " the wind blows";
+
+			TypeInto("LimitLengthTextBox", Entered2, Final2);
+
+			Assert.AreEqual(Final2, GetText(textBox));
+			Assert.AreEqual(Final2, GetText(textBlock));
+		}
+
+		[Test]
+		public void TextBox_BeforeTextChanging()
+		{
+			Run("UITests.Shared.Windows_UI_Xaml_Controls.TextBoxTests.TextBox_BeforeTextChanging");
+
+			var textBlock = _app.Marked("BeforeTextBlock");
+
+			const string Entered = "reassesses";
+			const string Final = "eee";
+
+			var textBox = TypeInto("BeforeTextBox", Entered, Final);
+
+			Assert.AreEqual(Final, GetText(textBox));
+			Assert.AreEqual(Final, GetText(textBlock));
+
+			_app.ClearText();
+
+			Assert.AreEqual("", GetText(textBox));
+			Assert.AreEqual("", GetText(textBlock));
+
+			const string Entered2 = "See the eels";
+			const string Final2 = "eeeee";
+
+			TypeInto("BeforeTextBox", Entered2, Final2);
+
+			Assert.AreEqual(Final2, GetText(textBox));
+			Assert.AreEqual(Final2, GetText(textBlock));
 		}
 
 		private QueryEx TypeInto(string textBoxName, string inputText, string expectedText)
@@ -298,7 +378,8 @@ namespace SamplesApp.UITests
 		private string GetText(QueryEx textBlock) => textBlock.GetDependencyPropertyValue<string>("Text");
 
 		[Test]
-		[Ignore("Mobile only TODO")]
+		[AutoRetry]
+		[ActivePlatforms(Platform.Android, Platform.iOS)]
 		public void Keyboard_DismissTesting()
 		{
 			Run(("Uno.UI.Samples.Content.UITests.ButtonTestsControl.AppBar_KeyBoard"));
