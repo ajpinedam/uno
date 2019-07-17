@@ -18,7 +18,7 @@ using Windows.UI.Xaml.Navigation;
 namespace SamplesApp.Samples.DatePicker
 {
 	[SampleControlInfo("Date Picker", "Sample", typeof(DatePickerViewModel))]
-	public sealed partial class DatePickerSample : Page
+	public sealed partial class DatePickerSample : UserControl
 	{
 		public DatePickerSample()
 		{

@@ -18,7 +18,7 @@ using Windows.UI.Xaml.Navigation;
 namespace SamplesApp.Samples.TimePicker
 {
 	[SampleControlInfo("Time Picker", "Sample1", typeof(TimePickerViewModel))]
-	public sealed partial class Sample1 : Page
+	public sealed partial class Sample1 : UserControl
 	{
 		public Sample1()
 		{
