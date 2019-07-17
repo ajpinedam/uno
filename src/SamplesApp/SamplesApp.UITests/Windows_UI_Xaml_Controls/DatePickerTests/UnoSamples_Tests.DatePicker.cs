@@ -1,4 +1,5 @@
 ﻿using NUnit.Framework;
+using SamplesApp.UITests.TestFramework;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -32,6 +33,7 @@ namespace SamplesApp.UITests.Windows_UI_Xaml_Controls.DatePickerTests
 		}
 
 		[Test]
+		[ActivePlatforms(Platform.iOS)]
 		public void DatePickerFlyout_HasContentTest()
 		{
 			Run("UITests.Shared.Windows_UI_Xaml_Controls.DatePicker.DatePicker_SampleContent");
@@ -45,11 +47,7 @@ namespace SamplesApp.UITests.Windows_UI_Xaml_Controls.DatePickerTests
 			theDatePicker.Tap();
 
 			//Assert
-			var myDevice = _app.Device.GetType();
-			if (_app.Device.GetType().Name.Contains("IOS"))
-			{
-				Assert.IsNotNull(datePickerFlyout.GetDependencyPropertyValue("Content"));
-			}
+			Assert.IsNotNull(datePickerFlyout.GetDependencyPropertyValue("Content"));
 		}
 	}
 }

@@ -1,4 +1,5 @@
 ﻿using NUnit.Framework;
+using SamplesApp.UITests.TestFramework;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -109,6 +110,7 @@ namespace SamplesApp.UITests.Windows_UI_Xaml_Controls.TimePickerTests
 		}
 
 		[Test]
+		[ActivePlatforms(Platform.iOS)]
 		public void TimePickerFlyout_HasContentTest()
 		{
 			Run("UITests.Shared.Windows_UI_Xaml_Controls.TimePicker.Sample2");
@@ -122,11 +124,7 @@ namespace SamplesApp.UITests.Windows_UI_Xaml_Controls.TimePickerTests
 			theTimePicker.Tap();
 
 			//Assert
-			var myDevice = _app.Device.GetType();
-			if (_app.Device.GetType().Name.Contains("IOS"))
-			{
-				Assert.IsNotNull(timePickerFlyout.GetDependencyPropertyValue("Content"));
-			}
+			Assert.IsNotNull(timePickerFlyout.GetDependencyPropertyValue("Content"));
 		}
 	}
 }
