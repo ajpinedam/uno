@@ -309,7 +309,7 @@ namespace Windows.UI.Xaml.Controls.Primitives
 			{
 				if (this.Log().IsEnabled(Microsoft.Extensions.Logging.LogLevel.Debug))
 				{
-					this.Log().Debug("Raising command");
+					this.Log().Debug("Executing command");
 				}
 
 				Command.ExecuteIfPossible(CommandParameter);
