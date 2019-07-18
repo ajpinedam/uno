@@ -95,6 +95,13 @@
 										<Border HorizontalAlignment="Left" VerticalAlignment="Bottom" Style="{StaticResource BlueSquareBorderStyle}" />
 										<Border HorizontalAlignment="Right" VerticalAlignment="Top" Style="{StaticResource BlueSquareBorderStyle}" />
 										<Border HorizontalAlignment="Right" VerticalAlignment="Bottom" Style="{StaticResource BlueSquareBorderStyle}" />
+										
+										<TextBlock Margin="0,90,0,0" MaxWidth="200">
+											On device without back button,
+											in order to close this flyout,
+											go to home page or task switcher,
+											and then return this app
+										</TextBlock>
 									</Grid>
 								</Flyout>
 							</Button.Flyout>
