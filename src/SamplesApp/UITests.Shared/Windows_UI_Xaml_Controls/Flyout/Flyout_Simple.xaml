@@ -73,7 +73,6 @@
 								</Flyout>
 							</Button.Flyout>
 						</Button>
-
 						<Button Content="Full+Overlay" Style="{StaticResource FlyoutButtonStyle}">
 							<Button.Flyout>
 								<Flyout Placement="Full">
@@ -82,6 +81,21 @@
 										        HorizontalAlignment="Center"
 										        Style="{StaticResource BlueSquareBorderStyle}" />
 									</Border>
+								</Flyout>
+							</Button.Flyout>
+						</Button>
+						<Button Content="Full+VeryLargeContent" Style="{StaticResource FlyoutButtonStyle}">
+							<Button.Flyout>
+								<Flyout Placement="Full">
+									<Grid Width="10000" Height="10000"
+											BorderBrush="Red"
+											BorderThickness="5">
+										<Border HorizontalAlignment="Center" VerticalAlignment="Center" Style="{StaticResource BlueSquareBorderStyle}" />
+										<Border HorizontalAlignment="Left" VerticalAlignment="Top" Style="{StaticResource BlueSquareBorderStyle}" />
+										<Border HorizontalAlignment="Left" VerticalAlignment="Bottom" Style="{StaticResource BlueSquareBorderStyle}" />
+										<Border HorizontalAlignment="Right" VerticalAlignment="Top" Style="{StaticResource BlueSquareBorderStyle}" />
+										<Border HorizontalAlignment="Right" VerticalAlignment="Bottom" Style="{StaticResource BlueSquareBorderStyle}" />
+									</Grid>
 								</Flyout>
 							</Button.Flyout>
 						</Button>
