@@ -15,8 +15,7 @@ The automation logic is as follows:
 * Has `2 or more approvals`
 * There are `no requests for change`
 * Is labelled with `ready-to-merge`
-* Not labelled with `do-not-merge/breaking-changes` or `do-not-merge/work-in-progress`
-* It will be automatically merged.
+* Not labelled with `do-not-merge/breaking-changes` or `do-not-merge/work-in-progress` It will be automatically merged.
 
 This logic is defined in [this file](https://github.com/unoplatform/Uno/blob/master/.mergify.yml).
 
