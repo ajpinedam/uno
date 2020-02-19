@@ -34,5 +34,14 @@ namespace Uno.UI.Controls
 			: base(contentRect, aStyle, bufferingType, deferCreation)
 		{
 		}
+
+		public static void SetNeedsKeyboard(NSView view, bool needsKeyboard)
+		{
+			if (view != null)
+			{
+				//_attachedProperties.SetValue(view, NeedsKeyboardAttachedPropertyKey, (bool?)needsKeyboard);
+			}
+		}
+
 	}
 }

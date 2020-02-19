@@ -11,11 +11,10 @@ namespace SamplesApp
 		{
 			this.InitializeComponent();
 
-			sampleControl.DataContext = new SampleChooserViewModel();
 
-#if __MACOS__
-			Content = new TextBlock() { Text= "Hello macOS!", FontSize = 72, Margin = new Thickness(12) };
-#endif
+			///Content = new TextBlock() { Text= "Hello macOS!", FontSize = 72, Margin = new Thickness(12) };
+			//, 
+			Content = new TextBox() {  PlaceholderText = "Hello macOS!", FontSize = 72, Margin = new Thickness(12), Height=100, Background = SolidColorBrushHelper.White };
 		}
 	}
 }

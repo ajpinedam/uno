@@ -1,7 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text;
+
+#if __IOS__
 using UIKit;
+#elif __MACOS__
+using AppKit;
+using IUITextInput = AppKit.INSTextInput;
+#endif
+
 using Windows.UI.Xaml.Media;
 
 namespace Windows.UI.Xaml.Controls
@@ -13,8 +20,12 @@ namespace Windows.UI.Xaml.Controls
 		void UpdateFont();
 		bool BecomeFirstResponder();
 		bool ResignFirstResponder();
+
+#if __IOS__
 		bool IsFirstResponder { get; }
 		void UpdateTextAlignment();
+#endif
+
 		Brush Foreground { get; set; }
 		void SetTextNative(string text);
 	}

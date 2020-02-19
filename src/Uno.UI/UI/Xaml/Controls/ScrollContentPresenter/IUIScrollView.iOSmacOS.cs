@@ -8,7 +8,10 @@ namespace Windows.UI.Xaml.Controls
 	internal interface IUIScrollView
 	{
 		CGPoint UpperScrollLimit { get; }
+
+#if __IOS__
 		void SetContentOffset(CGPoint contentOffset, bool animated);
 		void SetZoomScale(nfloat scale, bool animated);
+#endif
 	}
 }

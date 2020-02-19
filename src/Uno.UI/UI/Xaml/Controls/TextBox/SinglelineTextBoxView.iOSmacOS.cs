@@ -1,13 +1,17 @@
 ﻿using CoreGraphics;
-using Uno.UI.DataBinding;
-using Uno.UI.Views.Controls;
 using System;
-using System.Collections.Generic;
-using System.Text;
-using UIKit;
 using Uno.Extensions;
 using Windows.UI.Xaml.Media;
 using Uno.UI.Controls;
+using Foundation;
+
+#if __IOS__
+using UIKit;
+#elif __MACOS__
+using AppKit;
+using UITextField = AppKit.NSTextField;
+#endif
+
 
 namespace Windows.UI.Xaml.Controls
 {
@@ -29,6 +33,7 @@ namespace Windows.UI.Xaml.Controls
 			OnTextChanged();
 		}
 
+#if __IOS__
 		public override string Text
 		{
 			get
@@ -48,6 +53,28 @@ namespace Windows.UI.Xaml.Controls
 			}
 		}
 
+#elif __MACOS__
+
+		public string Text
+		{
+			get
+			{
+				return base.StringValue;
+			}
+
+			set
+			{
+				// The native control will ignore a value of null and retain an empty string. We coalesce the null to prevent a spurious empty string getting bounced back via two-way binding.
+				value = value ?? string.Empty;
+				if (base.StringValue != value)
+				{
+					base.StringValue = value;
+					OnTextChanged();
+				}
+			}
+		}
+#endif
+
 		private void OnTextChanged()
 		{
 			var textBox = _textBox?.GetTarget();
@@ -62,9 +89,11 @@ namespace Windows.UI.Xaml.Controls
 
 		private void Initialize()
 		{
+
+#if __IOS__
 			//Set native VerticalAlignment to top-aligned (default is center) to match Windows text placement
 			base.VerticalAlignment = UIControlContentVerticalAlignment.Top;
-
+#endif
 			Delegate = _delegate = new SinglelineTextBoxDelegate(_textBox)
 			{
 				IsKeyboardHiddenOnEnter = true
@@ -73,21 +102,31 @@ namespace Windows.UI.Xaml.Controls
 			RegisterLoadActions(
 				() =>
 				{
+#if __IOS__
+
 					this.EditingChanged += OnEditingChanged;
 					this.EditingDidEnd += OnEditingChanged;
+#endif
 				},
 				() =>
 				{
+#if __IOS__
 					this.EditingChanged -= OnEditingChanged;
 					this.EditingDidEnd -= OnEditingChanged;
+#endif
 				}
 			);
 		}
 
+#if __IOS__
 		public override CGSize SizeThatFits(CGSize size)
 		{
 			return IFrameworkElementHelper.SizeThatFits(this, base.SizeThatFits(size));
 		}
+#endif
+
+
+#if __IOS__
 
 		public override CGRect TextRect(CGRect forBounds)
 		{
@@ -123,6 +162,7 @@ namespace Windows.UI.Xaml.Controls
 				return CGRect.Empty;
 			}
 		}
+#endif
 
 		public void UpdateFont()
 		{
@@ -130,8 +170,11 @@ namespace Windows.UI.Xaml.Controls
 
 			if (textBox != null)
 			{
+#if __IOS__
 				var newFont = UIFontHelper.TryGetFont((float)textBox.FontSize, textBox.FontWeight, textBox.FontStyle, textBox.FontFamily);
-
+#elif __MACOS__
+				var newFont = NSFontHelper.TryGetFont((float)textBox.FontSize, textBox.FontWeight, textBox.FontStyle, textBox.FontFamily);
+#endif
 				if (newFont != null)
 				{
 					base.Font = newFont;
@@ -145,6 +188,16 @@ namespace Windows.UI.Xaml.Controls
 			get { return (Brush)GetValue(ForegroundProperty); }
 			set { SetValue(ForegroundProperty, value); }
 		}
+
+		public bool HasMarkedText => throw new NotImplementedException();
+
+		public nint ConversationIdentifier => throw new NotImplementedException();
+
+		public NSRange MarkedRange => throw new NotImplementedException();
+
+		public NSRange SelectedRange => throw new NotImplementedException();
+
+		public NSString[] ValidAttributesForMarkedText => throw new NotImplementedException();
 
 		public static readonly DependencyProperty ForegroundProperty =
 			DependencyProperty.Register(
@@ -169,11 +222,15 @@ namespace Windows.UI.Xaml.Controls
 				if (scb != null)
 				{
 					this.TextColor = scb.Color;
+
+#if __IOS__
 					this.TintColor = scb.Color;
+#endif
 				}
 			}
 		}
 
+#if __IOS__
 		public void UpdateTextAlignment()
 		{
 			var textBox = _textBox.GetTarget();
@@ -183,12 +240,14 @@ namespace Windows.UI.Xaml.Controls
 				TextAlignment = textBox.TextAlignment.ToNativeTextAlignment();
 			}
 		}
+#endif
 
 		public void RefreshFont()
 		{
 			UpdateFont();
 		}
 
+#if __IOS__
 		public override UITextRange SelectedTextRange
 		{
 			get
@@ -206,5 +265,40 @@ namespace Windows.UI.Xaml.Controls
 				}
 			}
 		}
+#endif
+
+#region "Some Interface"
+		public void InsertText(NSObject insertString)
+		{
+			throw new NotImplementedException();
+		}
+
+		public void SetMarkedText(NSObject @string, NSRange selRange)
+		{
+			throw new NotImplementedException();
+		}
+
+		public void UnmarkText()
+		{
+			throw new NotImplementedException();
+		}
+
+		public NSAttributedString GetAttributedSubstring(NSRange range)
+		{
+			throw new NotImplementedException();
+		}
+
+		public CGRect GetFirstRectForCharacterRange(NSRange range)
+		{
+			throw new NotImplementedException();
+		}
+
+		public nuint GetCharacterIndex(CGPoint point)
+		{
+			throw new NotImplementedException();
+		}
+#endregion
+
+
 	}
 }

@@ -1,17 +1,16 @@
 ﻿using CoreGraphics;
-using Uno.UI.Views.Controls;
 using System;
-using System.Collections.Generic;
-using System.Text;
-using UIKit;
 using Uno.Extensions;
-using System.Linq;
-using Foundation;
-using Uno.UI.Extensions;
 using Windows.UI.Core;
-using Uno.UI;
 using Windows.UI.Xaml.Media;
 using Uno.UI.Controls;
+
+#if __IOS__
+using UIKit;
+#elif __MACOS__
+using AppKit;
+using UITextView = AppKit.NSTextView;
+#endif
 
 namespace Windows.UI.Xaml.Controls
 {
@@ -21,7 +20,7 @@ namespace Windows.UI.Xaml.Controls
 		private readonly WeakReference<TextBox> _textBox;
 		private WeakReference<Uno.UI.Controls.Window> _window;
 
-		CGPoint IUIScrollView.UpperScrollLimit { get { return (CGPoint)(ContentSize - Frame.Size); } }
+		CGPoint IUIScrollView.UpperScrollLimit { get { return (CGPoint)( this.TextContainer.ContainerSize - Frame.Size); } }
 
 		public MultilineTextBoxView(TextBox textBox)
 		{
@@ -34,10 +33,17 @@ namespace Windows.UI.Xaml.Controls
 		private void Initialize()
 		{
 			Delegate = _delegate = new MultilineTextBoxDelegate(_textBox);
+
+#if __IOS__
 			BackgroundColor = UIColor.Clear;
+#elif __MACOS__
+			BackgroundColor = NSColor.Clear;
+#endif
+
 			TextContainer.LineFragmentPadding = 0;
 		}
 
+#if __IOS__
 		public override string Text
 		{
 			get
@@ -55,6 +61,25 @@ namespace Windows.UI.Xaml.Controls
 				}
 			}
 		}
+#elif __MACOS__
+		public string Text
+		{
+			get
+			{
+				return base.Value;
+			}
+			set
+			{
+				// The native control will ignore a value of null and retain an empty string. We coalesce the null to prevent a spurious empty string getting bounced back via two-way binding.
+				value = value ?? string.Empty;
+				if (base.Value != value)
+				{
+					base.Value = value;
+					OnTextChanged();
+				}
+			}
+		}
+#endif
 
 		public void SetTextNative(string text) => Text = text;
 
@@ -67,9 +92,12 @@ namespace Windows.UI.Xaml.Controls
 				SetTextNative(text);
 			}
 
+#if __IOS__
 			SetNeedsLayout();
+#endif
 			//We need to schedule the scrolling on the dispatcher so that we wait for the whole UI to be done before scrolling.
 			//Because the multiline must have its height set so we can set properly the scrollviewer insets
+
 			CoreDispatcher.Main.RunAsync(
 				CoreDispatcherPriority.Normal,
 				() => ScrollToCursor()
@@ -87,13 +115,18 @@ namespace Windows.UI.Xaml.Controls
 				_window = new WeakReference<Uno.UI.Controls.Window>(window);
 			}
 
+#if __IOS__
+
 			if (this.IsFirstResponder)
 			{
 				window.MakeVisible(this, BringIntoViewMode.BottomRightOfViewPort);
 			}
+#endif
 		}
 
 
+
+#if __IOS__
 		public override CGSize SizeThatFits(CGSize size)
 		{
 			var textBox = _textBox.GetTarget();
@@ -138,6 +171,7 @@ namespace Windows.UI.Xaml.Controls
 				return CGSize.Empty;
 			}
 		}
+#endif
 
 		public void UpdateFont()
 		{
@@ -145,8 +179,11 @@ namespace Windows.UI.Xaml.Controls
 
 			if (textBox != null)
 			{
+#if __IOS__
 				var newFont = UIFontHelper.TryGetFont((nfloat)textBox.FontSize, textBox.FontWeight, textBox.FontStyle, textBox.FontFamily);
-
+#elif __MACOS__
+				var newFont = NSFontHelper.TryGetFont((nfloat)textBox.FontSize, textBox.FontWeight, textBox.FontStyle, textBox.FontFamily);
+#endif
 				if (newFont != null)
 				{
 					base.Font = newFont;
@@ -184,11 +221,16 @@ namespace Windows.UI.Xaml.Controls
 				if (scb != null)
 				{
 					this.TextColor = scb.Color;
+
+#if __IOS__
 					this.TintColor = scb.Color;
+#endif
+
 				}
 			}
 		}
 
+#if __IOS__
 		public void UpdateTextAlignment()
 		{
 			var textBox = _textBox.GetTarget();
@@ -198,7 +240,9 @@ namespace Windows.UI.Xaml.Controls
 				TextAlignment = textBox.TextAlignment.ToNativeTextAlignment();
 			}
 		}
+#endif
 
+#if __IOS__
 		public override UITextRange SelectedTextRange
 		{
 			get
@@ -214,6 +258,8 @@ namespace Windows.UI.Xaml.Controls
 				}
 			}
 		}
+#endif
+
 
 		public void RefreshFont()
 		{
