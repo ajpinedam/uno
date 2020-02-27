@@ -4,6 +4,7 @@ using Uno.Extensions;
 using Windows.UI.Core;
 using Windows.UI.Xaml.Media;
 using Uno.UI.Controls;
+using Uno.UI.Extensions;
 
 #if __IOS__
 using UIKit;
@@ -20,7 +21,11 @@ namespace Windows.UI.Xaml.Controls
 		private readonly WeakReference<TextBox> _textBox;
 		private WeakReference<Uno.UI.Controls.Window> _window;
 
-		CGPoint IUIScrollView.UpperScrollLimit { get { return (CGPoint)( this.TextContainer.ContainerSize - Frame.Size); } }
+#if __IOS__
+		CGPoint IUIScrollView.UpperScrollLimit { get { return (CGPoint)( ContentSize - Frame.Size); } }
+#elif __MACOS__
+		CGPoint IUIScrollView.UpperScrollLimit { get { return (CGPoint)(this.TextContainer.ContainerSize - Frame.Size); } }
+#endif
 
 		public MultilineTextBoxView(TextBox textBox)
 		{
@@ -94,14 +99,14 @@ namespace Windows.UI.Xaml.Controls
 
 #if __IOS__
 			SetNeedsLayout();
+#elif __MACOS__
+			NeedsLayout = true;
 #endif
+
 			//We need to schedule the scrolling on the dispatcher so that we wait for the whole UI to be done before scrolling.
 			//Because the multiline must have its height set so we can set properly the scrollviewer insets
 
-			CoreDispatcher.Main.RunAsync(
-				CoreDispatcherPriority.Normal,
-				() => ScrollToCursor()
-			);
+			CoreDispatcher.Main.RunAsync(CoreDispatcherPriority.Normal, () => ScrollToCursor() );
 		}
 
 		internal void ScrollToCursor()
@@ -114,14 +119,17 @@ namespace Windows.UI.Xaml.Controls
 				window = _textBox.GetTarget().FindFirstParent<Uno.UI.Controls.Window>();
 				_window = new WeakReference<Uno.UI.Controls.Window>(window);
 			}
-
+			
 #if __IOS__
 
 			if (this.IsFirstResponder)
 			{
 				window.MakeVisible(this, BringIntoViewMode.BottomRightOfViewPort);
 			}
+#elif __MACOS__
+			window.MakeVisible(this, BringIntoViewMode.BottomRightOfViewPort);
 #endif
+
 		}
 
 

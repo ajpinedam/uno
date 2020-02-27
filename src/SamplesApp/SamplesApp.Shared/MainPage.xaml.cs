@@ -13,8 +13,26 @@ namespace SamplesApp
 
 
 			///Content = new TextBlock() { Text= "Hello macOS!", FontSize = 72, Margin = new Thickness(12) };
-			//, 
-			Content = new TextBox() {  PlaceholderText = "Hello macOS!", FontSize = 72, Margin = new Thickness(12), Height=100, Background = SolidColorBrushHelper.White };
+			//,
+
+			var grid = new Grid()
+			{
+				Background = SolidColorBrushHelper.Bisque
+			};
+
+			var textBox = new TextBox()
+			{
+				Text="Hi from MAC",
+				PlaceholderText = "Hello macOS!",
+				FontSize = 72,
+				Margin = new Thickness(12),
+				Background = SolidColorBrushHelper.Aqua,
+				PlaceholderForeground = SolidColorBrushHelper.AliceBlue
+			};
+
+			grid.Children.Add(textBox);
+
+			Content = grid;
 		}
 	}
 }

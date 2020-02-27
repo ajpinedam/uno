@@ -11,15 +11,22 @@ using System.Text;
 using System.Drawing;
 using AppKit;
 using Uno.UI;
+using CoreGraphics;
 
 namespace Windows.UI.Xaml.Controls
 {
 	public partial class ScrollContentPresenter : NSScrollView, IHasSizeThatFits
 	{
-		public nfloat ZoomScale {
+		public nfloat ZoomScale
+		{
 			get => Magnification;
 			set => Magnification = value;
 		}
+
+		public NSEdgeInsets ContentInset { get; set; }
+
+		public CGPoint UpperScrollLimit { get; }
+
 		public ScrollMode HorizontalScrollMode { get; set; }
 
 		public ScrollMode VerticalScrollMode { get; set; }

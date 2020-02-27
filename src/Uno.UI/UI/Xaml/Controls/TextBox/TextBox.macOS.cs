@@ -123,11 +123,24 @@ namespace Windows.UI.Xaml.Controls
 						return;
 					}
 
-					_textBoxView = new SinglelineTextBoxView(this);
+					 var tempText = new SinglelineTextBoxView(this);
+					//tempText.Frame = new CGRect(0, 0, 300, 100);
+					//tempText.BackgroundColor = NSColor.Red;
+					//tempText.TextColor = NSColor.Blue;
+					//tempText.SetTextNative("Hello!!");
+					//tempText.Editable = true;
+					_textBoxView = tempText;
 
-					_contentElement.Content = _textBoxView;
+
+					//var textBx = new NSTextField(new CGRect(0, 0, 300, 100));
+					//textBx.BackgroundColor = NSColor.Red;
+					//textBx.TextColor = NSColor.Blue;
+					//textBx.StringValue = "Nothing nothing";
+					//textBx.Editable = true;
+
+					_contentElement.Content = tempText;
 					_textBoxView.SetTextNative(Text);
-					InitializeProperties();					
+					InitializeProperties();
 				}
 			}
 		}
