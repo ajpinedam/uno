@@ -228,6 +228,8 @@ namespace Windows.UI.Xaml.Controls
 		}
 		private static bool IsTextPredictionEnabledErrorMessageShown = false;
 
+		public int SelectionStart {get; set;}
+
 		//public int SelectionStart
 		//{
 		//	get

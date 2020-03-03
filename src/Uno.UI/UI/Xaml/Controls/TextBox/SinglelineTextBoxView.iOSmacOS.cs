@@ -7,15 +7,16 @@ using Foundation;
 
 #if __IOS__
 using UIKit;
+using _TextField = UIKit.UITextField
 #elif __MACOS__
 using AppKit;
-using UITextField = AppKit.NSTextField;
+using _TextField = AppKit.NSTextField;
 #endif
 
 
 namespace Windows.UI.Xaml.Controls
 {
-	public partial class SinglelineTextBoxView : UITextField, ITextBoxView, DependencyObject, IFontScalable
+	public partial class SinglelineTextBoxView : _TextField, ITextBoxView, DependencyObject, IFontScalable
 	{
 		private SinglelineTextBoxDelegate _delegate;
 		private readonly WeakReference<TextBox> _textBox;
@@ -267,7 +268,8 @@ namespace Windows.UI.Xaml.Controls
 		}
 #endif
 
-#region "Some Interface"
+#if __MACOS__
+		#region "Some Interface"
 		public void InsertText(NSObject insertString)
 		{
 			throw new NotImplementedException();
@@ -297,8 +299,8 @@ namespace Windows.UI.Xaml.Controls
 		{
 			throw new NotImplementedException();
 		}
-#endregion
-
+		#endregion
+#endif
 
 	}
 }

@@ -8,14 +8,15 @@ using Uno.UI.Extensions;
 
 #if __IOS__
 using UIKit;
+using _TextView = UIKit.UITextView;
 #elif __MACOS__
 using AppKit;
-using UITextView = AppKit.NSTextView;
+using _TextView = AppKit.NSTextView;
 #endif
 
 namespace Windows.UI.Xaml.Controls
 {
-	public partial class MultilineTextBoxView : UITextView, ITextBoxView, DependencyObject, IFontScalable, IUIScrollView
+	public partial class MultilineTextBoxView : _TextView, ITextBoxView, DependencyObject, IFontScalable, IUIScrollView
 	{
 		private MultilineTextBoxDelegate _delegate;
 		private readonly WeakReference<TextBox> _textBox;
