@@ -40,10 +40,22 @@ namespace Windows.UI.Xaml.Controls
 		{
 			if (_content != null)
 			{
+				double horizontalMargin = 0;
+				double verticalMargin = 0;
+
 				var frameworkElement = _content as IFrameworkElement;
 
-				var horizontalMargin = frameworkElement.Margin.Left + frameworkElement.Margin.Right;
-				var verticalMargin = frameworkElement.Margin.Top + frameworkElement.Margin.Bottom;
+				if (frameworkElement != null)
+				{
+					horizontalMargin = frameworkElement.Margin.Left + frameworkElement.Margin.Right;
+					verticalMargin = frameworkElement.Margin.Top + frameworkElement.Margin.Bottom;
+				}
+
+				//TODO: AJPM Testing
+				if (frameworkElement == null)
+				{
+					this.Log().Debug("Content is not IFrameworkElement");
+				}
 
 				size = AdjustSize(size);
 
@@ -94,25 +106,37 @@ namespace Windows.UI.Xaml.Controls
 						SizeThatFits(Frame.Size);
 					}
 
+					double horizontalMargin = 0;
+					double verticalMargin = 0;
+
 					var frameworkElement = _content as IFrameworkElement;
 
-					var horizontalMargin = frameworkElement.Margin.Left + frameworkElement.Margin.Right;
-					var verticalMargin = frameworkElement.Margin.Top + frameworkElement.Margin.Bottom;
-
-					var adjustedMeasure = new CGSize(
-						GetAdjustedArrangeWidth(frameworkElement, (nfloat)horizontalMargin),
-						GetAdjustedArrangeHeight(frameworkElement, (nfloat)verticalMargin)
-					);
-
-					// Zoom works by applying a transform to the child view. If a view has a non-identity transform, its Frame shouldn't be set.
-					if (ZoomScale == 1)
+					if (frameworkElement != null)
 					{
-						_content.Frame = new CGRect(
-							GetAdjustedArrangeX(frameworkElement, adjustedMeasure, horizontalMargin),
-							GetAdjustedArrangeY(frameworkElement, adjustedMeasure, verticalMargin),
-							adjustedMeasure.Width,
-							adjustedMeasure.Height
+						horizontalMargin = frameworkElement.Margin.Left + frameworkElement.Margin.Right;
+						verticalMargin = frameworkElement.Margin.Top + frameworkElement.Margin.Bottom;
+
+						var adjustedMeasure = new CGSize(
+							GetAdjustedArrangeWidth(frameworkElement, (nfloat)horizontalMargin),
+							GetAdjustedArrangeHeight(frameworkElement, (nfloat)verticalMargin)
 						);
+
+						// Zoom works by applying a transform to the child view. If a view has a non-identity transform, its Frame shouldn't be set.
+						if (ZoomScale == 1)
+						{
+							_content.Frame = new CGRect(
+								GetAdjustedArrangeX(frameworkElement, adjustedMeasure, horizontalMargin),
+								GetAdjustedArrangeY(frameworkElement, adjustedMeasure, verticalMargin),
+								adjustedMeasure.Width,
+								adjustedMeasure.Height
+							);
+						}
+					}
+
+					//TODO: AJPM Testing
+					if (frameworkElement == null)
+					{
+						this.Log().Debug("Content is not IFrameworkElement");
 					}
 
 #if __IOS__
@@ -120,6 +144,11 @@ namespace Windows.UI.Xaml.Controls
 
 					// This prevents unnecessary touch delays (which affects the pressed visual states of buttons) when user can't scroll.
 					UpdateDelayedTouches();
+#else
+					_content.Frame = new CGRect(0, 0, 500, 500);
+
+					var size = AdjustContentSize(_content.Frame.Size + new CGSize(horizontalMargin, verticalMargin));
+					ContentView.Frame = new CGRect(new CGPoint(0, 0), size);
 #endif
 				}
 			}

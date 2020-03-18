@@ -25,6 +25,8 @@ using UIKit;
 using View = UIKit.UIView;
 using Color = UIKit.UIColor;
 using Font = UIKit.UIFont;
+#elif __MACOS__
+using View = AppKit.NSView;
 #else
 using View = Windows.UI.Xaml.UIElement;
 #endif
@@ -556,12 +558,15 @@ namespace Windows.UI.Xaml.Controls
 
 		private static void OnGenericPropertyChanged(object dependencyObject, DependencyPropertyChangedEventArgs args)
 		{
+
+#if !__MACOS__
 			var view = dependencyObject as View;
 
 			if (view != null)
 			{
 				view.InvalidateMeasure();
 			}
+#endif
 		}
 
 		protected override Foundation.Size MeasureOverride(Foundation.Size availableSize)

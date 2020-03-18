@@ -138,7 +138,7 @@ namespace Windows.UI.Xaml.Controls
 					//textBx.StringValue = "Nothing nothing";
 					//textBx.Editable = true;
 
-					_contentElement.Content = tempText;
+					_contentElement.Content = _textBoxView;
 					_textBoxView.SetTextNative(Text);
 					InitializeProperties();
 				}
@@ -296,7 +296,15 @@ namespace Windows.UI.Xaml.Controls
 			return view;
 		}
 
-#region ReturnKeyType DependencyProperty
+		partial void OnForegroundColorChangedPartial(Brush newValue)
+		{
+			if (_textBoxView != null)
+			{
+				_textBoxView.Foreground = newValue;
+			}
+		}
+
+		#region ReturnKeyType DependencyProperty
 #if __IOS__
 		public UIReturnKeyType ReturnKeyType
 		{
@@ -332,9 +340,9 @@ namespace Windows.UI.Xaml.Controls
 			}
 		}
 #endif
-#endregion
+		#endregion
 
-#region KeyboardAppearance DependendcyProperty
+		#region KeyboardAppearance DependendcyProperty
 #if __IOS__
 		public NSKeyboardAppearance KeyboardAppearance
 		{
@@ -361,6 +369,6 @@ namespace Windows.UI.Xaml.Controls
 			}
 		}
 #endif
-#endregion
+		#endregion
 	}
 }

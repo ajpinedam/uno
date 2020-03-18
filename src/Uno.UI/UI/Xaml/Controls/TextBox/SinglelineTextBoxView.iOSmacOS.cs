@@ -1,9 +1,11 @@
-﻿using CoreGraphics;
+using CoreGraphics;
 using System;
 using Uno.Extensions;
 using Windows.UI.Xaml.Media;
 using Uno.UI.Controls;
 using Foundation;
+using System.Collections;
+using System.Linq;
 
 #if __IOS__
 using UIKit;
@@ -198,7 +200,7 @@ namespace Windows.UI.Xaml.Controls
 
 		public NSRange SelectedRange => throw new NotImplementedException();
 
-		public NSString[] ValidAttributesForMarkedText => throw new NotImplementedException();
+		public NSString[] ValidAttributesForMarkedText => null;
 
 		public static readonly DependencyProperty ForegroundProperty =
 			DependencyProperty.Register(
