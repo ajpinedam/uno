@@ -22,5 +22,9 @@ namespace Windows.UI.Xaml.Shapes
 			var streamGeometry = Data?.ToStreamGeometry();
 			return streamGeometry?.ToCGPath();
 		}
+		partial void OnDataChanged()
+		{
+			this.InvalidateMeasure();
+		}
 	}
 }
