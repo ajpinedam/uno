@@ -5,7 +5,9 @@
 	xmlns:controls="using:Uno.UI.Samples.Controls"
 	xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
 	xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+	xmlns:uitest="clr-namespace:UITests.Shared.Windows_UI_Xaml_Shapes"
 	mc:Ignorable="d">
 
-	<controls:SampleChooserControl x:Name="sampleControl" />
+	<uitest:Basic_Shapes />
+	<!--<controls:SampleChooserControl x:Name="sampleControl" />-->
 </Page>
