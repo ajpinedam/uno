@@ -39,27 +39,15 @@
 
 	<None Include="**\*.netstd.cs" Exclude="bin\**\*.netstd.cs;obj\**\*.netstd.cs" />
     <Compile Remove="**\*.netstd.cs" />
-    <Compile Include="**\*.netstd.cs"
-                     Exclude="bin\**\*.netstd.cs;obj\**\*.netstd.cs"
-                     Condition="'$(TargetFramework)'=='netstandard2.0'" />
 
 	<None Include="**\*.wasm.cs" Exclude="bin\**\*.wasm.cs;obj\**\*.wasm.cs" />
 	<Compile Remove="**\*.wasm.cs" />
-	<Compile Include="**\*.wasm.cs"
-                     Exclude="bin\**\*.wasm.cs;obj\**\*.wasm.cs"
-                     Condition="'$(TargetFramework)'=='netstandard2.0' and '$(UnoRuntimeIdentifier)'=='WebAssembly'" />
 
 	<None Include="**\*.skia.cs" Exclude="bin\**\*.skia.cs;obj\**\*.skia.cs" />
 	<Compile Remove="**\*.skia.cs" />
-	<Compile Include="**\*.skia.cs"
-                     Exclude="bin\**\*.skia.cs;obj\**\*.skia.cs"
-                     Condition="'$(TargetFramework)'=='netstandard2.0' and '$(UnoRuntimeIdentifier)'=='Skia'" />
 
 	<None Include="**\*.netstdref.cs" Exclude="bin\**\*.netstdref.cs;obj\**\*.netstdref.cs" />
 	<Compile Remove="**\*.netstdref.cs" />
-	<Compile Include="**\*.netstdref.cs"
-                     Exclude="bin\**\*.netstdref.cs;obj\**\*.netstdref.cs"
-                     Condition="'$(TargetFramework)'=='netstandard2.0' and '$(UnoRuntimeIdentifier)'=='Reference'" />
 
 	<None Include="**\*.iOS.cs" Exclude="bin\**\*.iOS.cs;obj\**\*.iOS.cs" />
     <Compile Remove="**\*.iOS.cs" />

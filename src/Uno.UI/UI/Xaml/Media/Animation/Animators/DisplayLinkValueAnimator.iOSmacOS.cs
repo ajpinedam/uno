@@ -199,6 +199,8 @@ namespace Windows.UI.Xaml.Media.Animation
 				_displayLink?.RemoveFromRunLoop(NSRunLoop.Main, NSRunLoop.NSDefaultRunLoopMode);//detaches from the UI thread
 				_displayLink?.RemoveFromRunLoop(NSRunLoop.Main, NSRunLoop.UITrackingRunLoopMode);
 				_displayLink = null;
+#elif __MACOS__
+				UnscheduleTimer();
 #endif
 				_isAttachedToLooper = false;
 			}
