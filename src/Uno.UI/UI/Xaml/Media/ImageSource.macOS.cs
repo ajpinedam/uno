@@ -81,7 +81,11 @@ namespace Windows.UI.Xaml.Media
 		{
 			if (bundle.HasValueTrimmed())
 			{
-				return NSImage.ImageNamed(bundle);
+				//macOS will not pick Retina (@2x or @3x) if file has extension
+				var extension = Path.GetExtension(bundle);
+				var bundleName = bundle.Replace(extension, string.Empty);
+
+				return NSImage.ImageNamed(bundleName);
 			}
 
 			return null;
