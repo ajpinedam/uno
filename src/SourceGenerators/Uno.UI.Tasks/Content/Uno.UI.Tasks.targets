@@ -69,7 +69,8 @@
     <ItemGroup>
       <Content Remove="@(Assets)" />
       <BundleResource Condition="'$(XamarinProjectType)'=='ios'" Include="@(RetargetedAssets)" />
-      <AndroidResource Condition="'$(XamarinProjectType)'=='android'" Include="@(RetargetedAssets)" />
+      <BundleResource Condition="'$(XamarinProjectType)'=='macos'" Include="@(RetargetedAssets)" />
+      <AndroidResource Condition="'$(XamarinProjectType)'=='android'" Include="@(RetargetedAssets)" />      
     </ItemGroup>
   </Target>
 
