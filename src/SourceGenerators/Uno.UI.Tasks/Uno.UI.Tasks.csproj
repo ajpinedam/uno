@@ -1,4 +1,4 @@
-﻿<Project Sdk="MSBuild.Sdk.Extras">
+<Project Sdk="MSBuild.Sdk.Extras">
 	<PropertyGroup>
 		<TargetFramework>netstandard2.0</TargetFramework>
 		<AssemblyName>Uno.UI.SourceGenerators</AssemblyName>
@@ -38,6 +38,9 @@
 		<Compile Include="..\..\Uno.UWP\ApplicationModel\Resources\Core\iOSResourceConverter.cs">
 			<Link>Resources\iOSResourceConverter.cs</Link>
 		</Compile>
+		<Compile Include="..\..\Uno.UWP\ApplicationModel\Resources\Core\macOSResourceConverter.cs">
+			<Link>Resources\macOSResourceConverter.cs</Link>
+		</Compile>		
 		<Compile Include="..\..\Uno.UWP\ApplicationModel\Resources\Core\ResourceCandidate.cs">
 			<Link>Resources\ResourceCandidate.cs</Link>
 		</Compile>

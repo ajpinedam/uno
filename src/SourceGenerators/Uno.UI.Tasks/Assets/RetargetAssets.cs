@@ -56,6 +56,9 @@ namespace Uno.UI.Tasks.Assets
 				case "android":
 					resourceToTargetPath = resource => AndroidResourceConverter.Convert(resource, DefaultLanguage);
 					break;
+				case "macos":
+					resourceToTargetPath = resource => macOSResourceConverter.Convert(resource, DefaultLanguage);
+					break;					
 				default:
 					this.Log().Info($"Skipping unknown platform {TargetPlatform}");
 					return true;
