@@ -1,4 +1,5 @@
-﻿using Windows.UI.Xaml;
+﻿using Uno.UI.Helpers.WinUI;
+using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
 
 namespace Microsoft.UI.Xaml.Controls
@@ -22,7 +23,7 @@ namespace Microsoft.UI.Xaml.Controls
 			if (m_appliedTemplate)
 			{
 				var groupName = "NavigationSeparatorLineStates";
-				var stateName = (Position != NavigationViewRepeaterPosition.TopPrimary && Position() != NavigationViewRepeaterPosition.TopFooter)
+				var stateName = (Position != NavigationViewRepeaterPosition.TopPrimary && Position != NavigationViewRepeaterPosition.TopFooter)
 				   ? m_isClosedCompact
 					   ? "HorizontalLineCompact"
 					   : "HorizontalLine"
@@ -72,12 +73,12 @@ namespace Microsoft.UI.Xaml.Controls
 			UpdateVisualState(false /*useTransition*/);
 		}
 
-		void OnSplitViewPropertyChanged(DependencyObject sender, DependencyProperty args)
+		private void OnSplitViewPropertyChanged(DependencyObject sender, DependencyProperty args)
 		{
 			UpdateIsClosedCompact(true);
 		}
 
-		void UpdateItemIndentation()
+		private void UpdateItemIndentation()
 		{
 			// Update item indentation based on its depth
 			var rootGrid = m_rootGrid;
@@ -93,7 +94,7 @@ namespace Microsoft.UI.Xaml.Controls
 			}
 		}
 
-		void UpdateIsClosedCompact(bool updateVisualState)
+		private void UpdateIsClosedCompact(bool updateVisualState)
 		{
 			var splitView = GetSplitView();
 			if (splitView != null)
