@@ -9,6 +9,12 @@ namespace Microsoft.UI.Xaml.Automation.Peers
 {
 	public class NavigationViewItemAutomationPeer : FrameworkElementAutomationPeer, IExpandCollapseProvider
 	{
+		private enum AutomationOutput
+		{
+			Position,
+			Size,
+		}
+
 		public NavigationViewItemAutomationPeer(NavigationViewItem navigationViewItem) : base(navigationViewItem)
 		{
 		}
@@ -94,8 +100,9 @@ namespace Microsoft.UI.Xaml.Automation.Peers
 
 			if (IsOnTopNavigation() && !IsOnFooterNavigation())
 			{
-				if (var navview = GetParentNavigationView())
-        {
+				var navview = GetParentNavigationView();
+				if (navview != null)
+				{
 					sizeOfSet = GetPositionOrSetCountInTopNavHelper(AutomationOutput.Size);
 
 				}
@@ -110,19 +117,22 @@ namespace Microsoft.UI.Xaml.Automation.Peers
 
 		protected override int GetLevelCore()
 		{
-			if (NavigationViewItemBase nvib = Owner as NavigationViewItemBase())
-    {
-				var nvibImpl = get_self<NavigationViewItemBase>(nvib);
+			NavigationViewItemBase nvib = Owner as NavigationViewItemBase;
+			if (nvib != null)
+			{
+				var nvibImpl = nvib;
 				if (nvibImpl.IsTopLevelItem())
 				{
 					return 1;
 				}
 				else
 				{
-					if (var navView = GetParentNavigationView())
-            {
-						if (var indexPath = get_self<NavigationView>(navView).GetIndexPathForContainer(nvib))
-                {
+					var navView = GetParentNavigationView();
+					if (navView != null)
+					{
+						var indexPath = navView.GetIndexPathForContainer(nvib);
+						if (indexPath != null)
+						{
 							// first index in path stands for main or footer menu
 							return indexPath.GetSize() - 1;
 						}
@@ -479,7 +489,7 @@ namespace Microsoft.UI.Xaml.Automation.Peers
 			var nvi = Owner as NavigationViewItem;
 			if (nvi != null)
 			{
-				nvi.IsSelected(isSelected);
+				nvi.IsSelected = isSelected;
 			}
 		}
 
