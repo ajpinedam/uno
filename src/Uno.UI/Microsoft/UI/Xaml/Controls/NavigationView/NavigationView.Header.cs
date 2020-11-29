@@ -1,4 +1,8 @@
 ﻿using System.Collections.Generic;
+using Windows.ApplicationModel.Core;
+using Windows.UI.ViewManagement;
+using Windows.UI.Xaml;
+using Windows.UI.Xaml.Controls;
 
 namespace Microsoft.UI.Xaml.Controls
 {
@@ -17,6 +21,70 @@ namespace Microsoft.UI.Xaml.Controls
 			FromRight, // SlideNavigationTransitionInfo
 			Default // Currently it's mapping to EntranceNavigationTransitionInfo and is subject to change.
 		}
+
+		private bool m_InitialNonForcedModeUpdate = true;
+
+		// Cache these objects for the view as they are expensive to query via GetForCurrentView() calls.
+		private ApplicationView m_applicationView = null;
+		private UIViewSettings m_uiViewSettings = null;
+
+		private NavigationViewItemsFactory m_navigationViewItemsFactory = null;
+
+		// Visual components
+
+		private Button m_paneToggleButton;
+		private SplitView m_rootSplitView;
+		private NavigationViewItem m_settingsItem;
+		private RowDefinition m_itemsContainerRow;
+		private FrameworkElement m_menuItemsScrollViewer;
+		private FrameworkElement m_footerItemsScrollViewer;
+		private UIElement m_paneContentGrid;
+		private ColumnDefinition m_paneToggleButtonIconGridColumn;
+		private FrameworkElement m_paneTitleHolderFrameworkElement;
+		private FrameworkElement m_paneTitleFrameworkElement;
+		private FrameworkElement m_visualItemsSeparator;
+		private Button m_paneSearchButton;
+		private Button m_backButton;
+		private Button m_closeButton;
+		private ItemsRepeater m_leftNavRepeater;
+		private ItemsRepeater m_topNavRepeater;
+		private ItemsRepeater m_leftNavFooterMenuRepeater;
+		private ItemsRepeater m_topNavFooterMenuRepeater;
+		private Button m_topNavOverflowButton;
+		private ItemsRepeater m_topNavRepeaterOverflowView;
+		private Grid m_topNavGrid;
+		private Border m_topNavContentOverlayAreaGrid;
+
+		// Indicator animations
+		private UIElement m_prevIndicator;
+		private UIElement m_nextIndicator;
+		private UIElement m_activeIndicator;
+		private object m_lastSelectedItemPendingAnimationInTopNav;
+
+		private FrameworkElement m_togglePaneTopPadding;
+		private FrameworkElement m_contentPaneTopPadding;
+		private FrameworkElement m_contentLeftPadding;
+
+		private CoreApplicationViewTitleBar m_coreTitleBar;
+
+		private ContentControl m_leftNavPaneAutoSuggestBoxPresenter;
+		private ContentControl m_topNavPaneAutoSuggestBoxPresenter;
+
+		private ContentControl m_leftNavPaneHeaderContentBorder;
+		private ContentControl m_leftNavPaneCustomContentBorder;
+		private ContentControl m_leftNavFooterContentBorder;
+
+		private ContentControl m_paneHeaderOnTopPane;
+		private ContentControl m_paneTitleOnTopPane;
+		private ContentControl m_paneCustomContentOnTopPane;
+		private ContentControl m_paneFooterOnTopPane;
+		private ContentControl m_paneTitlePresenter;
+
+		private ColumnDefinition m_paneHeaderCloseButtonColumn;
+		private ColumnDefinition m_paneHeaderToggleButtonColumn;
+		private RowDefinition m_paneHeaderContentBorderRow;
+
+		private NavigationViewItem m_lastItemExpandedIntoFlyout;
 
 		private bool m_wasForceClosed = false;
 		private bool m_isClosedCompact = false;

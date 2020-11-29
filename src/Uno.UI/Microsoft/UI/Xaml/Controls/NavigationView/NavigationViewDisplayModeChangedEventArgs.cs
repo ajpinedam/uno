@@ -3,7 +3,7 @@
 	/// <summary>
 	/// Provides data for the NavigationView.DisplayModeChanged event.
 	/// </summary>
-	public partial sealed class NavigationViewDisplayModeChangedEventArgs
+	public sealed partial class NavigationViewDisplayModeChangedEventArgs
     {
 		internal NavigationViewDisplayModeChangedEventArgs(NavigationViewDisplayMode displayMode) =>
 			DisplayMode = displayMode;
