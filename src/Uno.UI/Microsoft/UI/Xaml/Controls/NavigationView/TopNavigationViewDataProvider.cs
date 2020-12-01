@@ -21,7 +21,7 @@ namespace Microsoft.UI.Xaml.Controls
 			InitializeSplitVectors(primaryVector, overflowVector);
 		}
 
-		private IList<object> GetPrimaryItems()
+		internal IList<object> GetPrimaryItems()
 		{
 			return GetVector(NavigationViewSplitVectorID.PrimaryList).GetVector();
 		}

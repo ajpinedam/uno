@@ -642,12 +642,12 @@ namespace Microsoft.UI.Xaml.Controls
 			}
 		}
 
-		bool ShouldRepeaterShowInFlyout()
+		internal bool ShouldRepeaterShowInFlyout()
 		{
 			return (m_isClosedCompact && IsTopLevelItem) || IsOnTopPrimary();
 		}
 
-		bool IsRepeaterVisible()
+		private bool IsRepeaterVisible()
 		{
 			var repeater = m_repeater; if (repeater != null)
 			{
@@ -656,7 +656,7 @@ namespace Microsoft.UI.Xaml.Controls
 			return false;
 		}
 
-		void UpdateItemIndentation()
+		private void UpdateItemIndentation()
 		{
 			// Update item indentation based on its depth
 			if (var presenter = m_navigationViewItemPresenter)
