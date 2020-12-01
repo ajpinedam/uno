@@ -26,13 +26,13 @@ namespace Microsoft.UI.Xaml.Controls
 			return GetVector(NavigationViewSplitVectorID.PrimaryList).GetVector();
 		}
 
-		private IList<object> GetOverflowItems()
+		internal IList<object> GetOverflowItems()
 		{
 			return GetVector(NavigationViewSplitVectorID.OverflowList).GetVector();
 		}
 
 		// The raw data is from MenuItems or MenuItemsSource
-		private void SetDataSource(object rawData)
+		internal void SetDataSource(object rawData)
 		{
 			if (ShouldChangeDataSource(rawData)) // avoid to create multiple of datasource for the same raw data
 			{
@@ -108,7 +108,7 @@ namespace Microsoft.UI.Xaml.Controls
 			}
 		}
 
-		private IList<int> ConvertPrimaryIndexToIndex(IList<int> indexesInPrimary)
+		internal IList<int> ConvertPrimaryIndexToIndex(IList<int> indexesInPrimary)
 		{
 			var indexes = new List<int>();
 			if (indexesInPrimary.Count > 0)
@@ -151,7 +151,7 @@ namespace Microsoft.UI.Xaml.Controls
 			};
 		}
 
-		private int GetPrimaryListSize()
+		internal int GetPrimaryListSize()
 		{
 			return GetPrimaryItems().Count;
 		}
@@ -220,7 +220,7 @@ namespace Microsoft.UI.Xaml.Controls
 			return hasInvalidWidth;
 		}
 
-		private double GetWidthForItem(int index)
+		internal double GetWidthForItem(int index)
 		{
 			var width = AttachedData(index);
 			if (!IsValidWidth(width))
@@ -345,7 +345,7 @@ namespace Microsoft.UI.Xaml.Controls
 			MoveItemsToVector(NavigationViewSplitVectorID.NotInitialized);
 		}
 
-		private bool IsItemInPrimaryList(int index)
+		internal bool IsItemInPrimaryList(int index)
 		{
 			return GetVectorIDForItem(index) == NavigationViewSplitVectorID.PrimaryList;
 		}

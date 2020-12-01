@@ -3,10 +3,13 @@ using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Numerics;
 using Microsoft.UI.Xaml.Automation.Peers;
+using Uno.Disposables;
 using Uno.UI.Helpers.WinUI;
 using Windows.ApplicationModel.Core;
 using Windows.Foundation;
+using Windows.System;
 using Windows.UI.Composition;
+using Windows.UI.Core;
 using Windows.UI.ViewManagement;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Automation;
@@ -15,6 +18,7 @@ using Windows.UI.Xaml.Controls;
 using Windows.UI.Xaml.Hosting;
 using Windows.UI.Xaml.Input;
 using Windows.UI.Xaml.Media;
+using Windows.UI.Xaml.Media.Animation;
 using static Microsoft.UI.Xaml.Controls._Tracing;
 
 //TODO: Ensure Append is not used instead of Add accidentally
@@ -707,111 +711,112 @@ namespace Microsoft.UI.Xaml.Controls
 		//			UpdatePaneLayout();
 		//		}
 
-		//		void UpdateRepeaterItemsSource(bool forceSelectionModelUpdate)
-		//		{
-		//			var itemsSource = [this]()
+		private void UpdateRepeaterItemsSource(bool forceSelectionModelUpdate)
+		{
+			object GetItemsSource()
+			{
+				var menuItemsSource = MenuItemsSource;
+				if (menuItemsSource != null)
+				{
+					return menuItemsSource;
+				}
+				UpdateSelectionForMenuItems();
+				return MenuItems;
+			}
+			var itemsSource = GetItemsSource();
 
+			// Selection Model has same representation of data regardless
+			// of pane mode, so only update if the ItemsSource data itself
+			// has changed.
+			if (forceSelectionModelUpdate)
+			{
+				m_selectionModelSource[0] = itemsSource;
+			}
 
+			m_menuItemsCollectionChangedRevoker.revoke();
+			m_menuItemsSource = new ItemsSourceView(itemsSource);
+			m_menuItemsCollectionChangedRevoker = m_menuItemsSource.CollectionChanged(auto_revoke, { this, &OnMenuItemsSourceCollectionChanged });
 
-		//	{
-		//				if (var menuItemsSource = MenuItemsSource())
-		//        {
-		//					return menuItemsSource;
-		//				}
-		//				UpdateSelectionForMenuItems();
-		//				return MenuItems().as< object > ();
-		//			} ();
+			if (IsTopNavigationView())
+			{
+				UpdateLeftRepeaterItemSource(null);
+				UpdateTopNavRepeatersItemSource(itemsSource);
+				InvalidateTopNavPrimaryLayout();
+			}
+			else
+			{
+				UpdateTopNavRepeatersItemSource(null);
+				UpdateLeftRepeaterItemSource(itemsSource);
+			}
+		}
 
-		//			// Selection Model has same representation of data regardless
-		//			// of pane mode, so only update if the ItemsSource data itself
-		//			// has changed.
-		//			if (forceSelectionModelUpdate)
-		//			{
-		//				m_selectionModelSource.SetAt(0, itemsSource);
-		//			}
+		private void UpdateLeftRepeaterItemSource(object items)
+		{
+			UpdateItemsRepeaterItemsSource(m_leftNavRepeater, items);
+			// Left pane repeater has a new items source, update pane layout.
+			UpdatePaneLayout();
+		}
 
-		//			m_menuItemsCollectionChangedRevoker.revoke();
-		//			m_menuItemsSource = ItemsSourceView(itemsSource);
-		//			m_menuItemsCollectionChangedRevoker = m_menuItemsSource.CollectionChanged(auto_revoke, { this, &OnMenuItemsSourceCollectionChanged });
+		private void UpdateTopNavRepeatersItemSource(object items)
+		{
+			// Change data source and setup vectors
+			m_topDataProvider.SetDataSource(items);
 
-		//			if (IsTopNavigationView())
-		//			{
-		//				UpdateLeftRepeaterItemSource(null);
-		//				UpdateTopNavRepeatersItemSource(itemsSource);
-		//				InvalidateTopNavPrimaryLayout();
-		//			}
-		//			else
-		//			{
-		//				UpdateTopNavRepeatersItemSource(null);
-		//				UpdateLeftRepeaterItemSource(itemsSource);
-		//			}
-		//		}
+			// rebinding
+			UpdateTopNavPrimaryRepeaterItemsSource(items);
+			UpdateTopNavOverflowRepeaterItemsSource(items);
+		}
 
-		//		void UpdateLeftRepeaterItemSource(object items)
-		//		{
-		//			UpdateItemsRepeaterItemsSource(m_leftNavRepeater, items);
-		//			// Left pane repeater has a new items source, update pane layout.
-		//			UpdatePaneLayout();
-		//		}
+		private void UpdateTopNavPrimaryRepeaterItemsSource(object items)
+		{
+			if (items != null)
+			{
+				UpdateItemsRepeaterItemsSource(m_topNavRepeater, m_topDataProvider.GetPrimaryItems());
+			}
+			else
+			{
+				UpdateItemsRepeaterItemsSource(m_topNavRepeater, null);
+			}
+		}
 
-		//		void UpdateTopNavRepeatersItemSource(object items)
-		//		{
-		//			// Change data source and setup vectors
-		//			m_topDataProvider.SetDataSource(items);
+		private void UpdateTopNavOverflowRepeaterItemsSource(object items)
+		{
+			m_topNavOverflowItemsCollectionChangedRevoker.Disposable = null;
 
-		//			// rebinding
-		//			UpdateTopNavPrimaryRepeaterItemsSource(items);
-		//			UpdateTopNavOverflowRepeaterItemsSource(items);
-		//		}
+			var overflowRepeater = m_topNavRepeaterOverflowView;
+			if (overflowRepeater != null)
+			{
+				if (items != null)
+				{
+					var itemsSource = m_topDataProvider.GetOverflowItems();
+					overflowRepeater.ItemsSource = itemsSource;
 
-		//		void UpdateTopNavPrimaryRepeaterItemsSource(object items)
-		//		{
-		//			if (items)
-		//			{
-		//				UpdateItemsRepeaterItemsSource(m_topNavRepeater, m_topDataProvider.GetPrimaryItems());
-		//			}
-		//			else
-		//			{
-		//				UpdateItemsRepeaterItemsSource(m_topNavRepeater, null);
-		//			}
-		//		}
+					// We listen to changes to the overflow menu item collection so we can set the visibility of the overflow button
+					// to collapsed when it no longer has any items.
+					//
+					// Normally, MeasureOverride() kicks off updating the button's visibility, however, it is not run when the overflow menu
+					// only contains a *single* item and we
+					// - either remove that menu item or
+					// - remove menu items displayed in the NavigationView pane until there is enough room for the single overflow menu item
+					//   to be displayed in the pane
+					overflowRepeater.ItemsSourceView.CollectionChanged += OnOverflowItemsSourceCollectionChanged;
+					m_topNavOverflowItemsCollectionChangedRevoker.Disposable = Disposable.Create(() => overflowRepeater.ItemsSourceView.CollectionChanged -= OnOverflowItemsSourceCollectionChanged);
+				}
+				else
+				{
+					overflowRepeater.ItemsSource = null;
+				}
+			}
+		}
 
-		//		void UpdateTopNavOverflowRepeaterItemsSource(object items)
-		//		{
-		//			m_topNavOverflowItemsCollectionChangedRevoker.revoke();
-
-		//			if (var overflowRepeater = m_topNavRepeaterOverflowView)
-		//    {
-		//				if (items)
-		//				{
-		//					var itemsSource = m_topDataProvider.GetOverflowItems();
-		//					overflowRepeater.ItemsSource(itemsSource);
-
-		//					// We listen to changes to the overflow menu item collection so we can set the visibility of the overflow button
-		//					// to collapsed when it no longer has any items.
-		//					//
-		//					// Normally, MeasureOverride() kicks off updating the button's visibility, however, it is not run when the overflow menu
-		//					// only contains a *single* item and we
-		//					// - either remove that menu item or
-		//					// - remove menu items displayed in the NavigationView pane until there is enough room for the single overflow menu item
-		//					//   to be displayed in the pane
-		//					m_topNavOverflowItemsCollectionChangedRevoker = overflowRepeater.ItemsSourceView().CollectionChanged(auto_revoke, { this, &OnOverflowItemsSourceCollectionChanged });
-		//				}
-		//				else
-		//				{
-		//					overflowRepeater.ItemsSource(null);
-		//				}
-		//			}
-		//		}
-
-		//		void UpdateItemsRepeaterItemsSource(ItemsRepeater& ir,
-		//			 object itemsSource)
-		//		{
-		//			if (ir)
-		//			{
-		//				ir.ItemsSource(itemsSource);
-		//			}
-		//		}
+		private void UpdateItemsRepeaterItemsSource(ItemsRepeater ir,
+			 object itemsSource)
+		{
+			if (ir != null)
+			{
+				ir.ItemsSource = itemsSource;
+			}
+		}
 
 		//		void UpdateFooterRepeaterItemsSource(bool sourceCollectionReset, bool sourceCollectionChanged)
 		//		{
@@ -2515,573 +2520,581 @@ namespace Microsoft.UI.Xaml.Controls
 			ItemInvoked?.Invoke(this, eventArgs);
 		}
 
-		//			// forceSetDisplayMode: On first call to SetDisplayMode, force setting to initial values
-		//			void SetDisplayMode(NavigationViewDisplayMode&displayMode, bool forceSetDisplayMode)
-		//{
-		//				// Need to keep the VisualStateGroup "DisplayModeGroup" updated even if the actual
-		//				// display mode is not changed. This is due to the fact that there can be a transition between
-		//				// 'Minimal' and 'MinimalWithBackButton'.
-		//				UpdateVisualStateForDisplayModeGroup(displayMode);
-
-		//				if (forceSetDisplayMode || DisplayMode() != displayMode)
-		//				{
-		//					// Update header visibility based on what the new display mode will be
-		//					UpdateHeaderVisibility(displayMode);
-
-		//					UpdatePaneTabFocusNavigation();
-
-		//					UpdatePaneToggleSize();
-
-		//					RaiseDisplayModeChanged(displayMode);
-		//				}
-		//			}
-
-		//			// To support TopNavigationView, DisplayModeGroup in visualstate(We call it VisualStateDisplayMode) is decoupled with DisplayMode.
-		//			// The VisualStateDisplayMode is the combination of TopNavigationView, DisplayMode, PaneDisplayMode.
-		//			// Here is the mapping:
-		//			//    TopNav . Minimal
-		//			//    PaneDisplayMode.Left || (PaneDisplayMode.Auto && DisplayMode.Expanded) . Expanded
-		//			//    PaneDisplayMode.LeftCompact || (PaneDisplayMode.Auto && DisplayMode.Compact) . Compact
-		//			//    Map others to Minimal or MinimalWithBackButton 
-		//			NavigationViewVisualStateDisplayMode GetVisualStateDisplayMode(NavigationViewDisplayMode&displayMode)
-		//{
-		//				var paneDisplayMode = PaneDisplayMode();
-
-		//				if (IsTopNavigationView())
-		//				{
-		//					return NavigationViewVisualStateDisplayMode.Minimal;
-		//				}
-
-		//				if (paneDisplayMode == NavigationViewPaneDisplayMode.Left ||
-		//					(paneDisplayMode == NavigationViewPaneDisplayMode.Auto && displayMode == NavigationViewDisplayMode.Expanded))
-		//				{
-		//					return NavigationViewVisualStateDisplayMode.Expanded;
-		//				}
-
-		//				if (paneDisplayMode == NavigationViewPaneDisplayMode.LeftCompact ||
-		//					(paneDisplayMode == NavigationViewPaneDisplayMode.Auto && displayMode == NavigationViewDisplayMode.Compact))
-		//				{
-		//					return NavigationViewVisualStateDisplayMode.Compact;
-		//				}
-
-		//				// In minimal mode, when the NavView is closed, the HeaderContent doesn't have
-		//				// its own dedicated space, and must 'share' the top of the NavView with the 
-		//				// pane toggle button ('hamburger' button) and the back button.
-		//				// When the NavView is open, the close button is taking space instead of the back button.
-		//				if (ShouldShowBackButton() || ShouldShowCloseButton())
-		//				{
-		//					return NavigationViewVisualStateDisplayMode.MinimalWithBackButton;
-		//				}
-		//				else
-		//				{
-		//					return NavigationViewVisualStateDisplayMode.Minimal;
-		//				}
-		//			}
-
-		//			void UpdateVisualStateForDisplayModeGroup(NavigationViewDisplayMode&displayMode)
-		//{
-		//				if (var splitView = m_rootSplitView)
-		//    {
-		//					var visualStateDisplayMode = GetVisualStateDisplayMode(displayMode);
-		//					var visualStateName = "";
-		//					var splitViewDisplayMode = SplitViewDisplayMode.Overlay;
-		//					var visualStateNameMinimal = "Minimal";
-
-		//					switch (visualStateDisplayMode)
-		//					{
-		//						case NavigationViewVisualStateDisplayMode.MinimalWithBackButton:
-		//							visualStateName = "MinimalWithBackButton";
-		//							splitViewDisplayMode = SplitViewDisplayMode.Overlay;
-		//							break;
-		//						case NavigationViewVisualStateDisplayMode.Minimal:
-		//							visualStateName = visualStateNameMinimal;
-		//							splitViewDisplayMode = SplitViewDisplayMode.Overlay;
-		//							break;
-		//						case NavigationViewVisualStateDisplayMode.Compact:
-		//							visualStateName = "Compact";
-		//							splitViewDisplayMode = SplitViewDisplayMode.CompactOverlay;
-		//							break;
-		//						case NavigationViewVisualStateDisplayMode.Expanded:
-		//							visualStateName = "Expanded";
-		//							splitViewDisplayMode = SplitViewDisplayMode.CompactInline;
-		//							break;
-		//					}
-
-		//					// When the pane is made invisible we need to collapse the pane part of the SplitView
-		//					if (!IsPaneVisible())
-		//					{
-		//						splitViewDisplayMode = SplitViewDisplayMode.CompactOverlay;
-		//					}
-
-		//					var handled = false;
-		//					if (visualStateName == visualStateNameMinimal && IsTopNavigationView())
-		//					{
-		//						// TopNavigationMinimal was introduced in 19H1. We need to fallback to Minimal if the customer uses an older template.
-		//						handled = VisualStateManager.GoToState(this, "TopNavigationMinimal", false /*useTransitions*/);
-		//					}
-		//					if (!handled)
-		//					{
-		//						VisualStateManager.GoToState(this, visualStateName, false /*useTransitions*/);
-		//					}
-
-		//					// Updating the splitview 'DisplayMode' property in some diplaymodes causes children to be added to the popup root.
-		//					// This causes an exception if the NavigationView is in the popup root itself (as SplitView is trying to add children to the tree while it is being measured).
-		//					// Due to this, we want to defer updating this property for all calls coming from `OnApplyTemplate`to the OnLoaded function.
-		//					if (m_fromOnApplyTemplate)
-		//					{
-		//						m_updateVisualStateForDisplayModeFromOnLoaded = true;
-		//					}
-		//					else
-		//					{
-		//						splitView.DisplayMode(splitViewDisplayMode);
-		//					}
-		//				}
-		//			}
-
-		//			void OnNavigationViewItemTapped(objectsender,  TappedRoutedEventArgs args)
-		//{
-		//				if (var nvi = sender as NavigationViewItem())
-		//    {
-		//					OnNavigationViewItemInvoked(nvi);
-		//					nvi.Focus(FocusState.Pointer);
-		//					args.Handled(true);
-		//				}
-		//			}
-
-		//			void OnNavigationViewItemKeyDown(objectsender,  KeyRoutedEventArgs args)
-		//{
-		//				if ((args.OriginalKey() == VirtualKey.GamepadA
-		//					|| args.Key() == VirtualKey.Enter
-		//					|| args.Key() == VirtualKey.Space))
-		//				{
-		//					// Only handle those keys if the key is not being held down!
-		//					if (!args.KeyStatus().WasKeyDown)
-		//					{
-		//						if (var nvi = sender as NavigationViewItem())
-		//            {
-		//							HandleKeyEventForNavigationViewItem(nvi, args);
-		//						}
-		//					}
-		//				}
-		//				else
-		//				{
-		//					if (var nvi = sender as NavigationViewItem())
-		//        {
-		//						HandleKeyEventForNavigationViewItem(nvi, args);
-		//					}
-		//				}
-		//			}
-
-		//			void HandleKeyEventForNavigationViewItem(NavigationViewItem nvi,  KeyRoutedEventArgs args)
-		//{
-		//				var key = args.Key();
-		//				switch (key)
-		//				{
-		//					case VirtualKey.Enter:
-		//					case VirtualKey.Space:
-		//						args.Handled(true);
-		//						OnNavigationViewItemInvoked(nvi);
-		//						break;
-		//					case VirtualKey.Home:
-		//						args.Handled(true);
-		//						KeyboardFocusFirstItemFromItem(nvi);
-		//						break;
-		//					case VirtualKey.End:
-		//						args.Handled(true);
-		//						KeyboardFocusLastItemFromItem(nvi);
-		//						break;
-		//					case VirtualKey.Down:
-		//						FocusNextDownItem(nvi, args);
-		//						break;
-		//					case VirtualKey.Up:
-		//						FocusNextUpItem(nvi, args);
-		//						break;
-		//				}
-		//			}
-
-		//			void FocusNextUpItem(NavigationViewItem nvi,  KeyRoutedEventArgs args)
-		//{
-		//				if (args.OriginalSource() != nvi)
-		//				{
-		//					return;
-		//				}
-
-		//				bool shouldHandleFocus = true;
-		//				var nviImpl = get_self<NavigationViewItem>(nvi);
-		//				var nextFocusableElement = FocusManager.FindNextFocusableElement(FocusNavigationDirection.Up);
-
-		//				if (var nextFocusableNVI = nextFocusableElement as NavigationViewItem())
-		//    {
-
-		//					var nextFocusableNVIImpl = get_self<NavigationViewItem>(nextFocusableNVI);
-
-		//					if (nextFocusableNVIImpl.Depth() == nviImpl.Depth())
-		//					{
-		//						// If we not at the top of the list for our current depth and the item above us has children, check whether we should move focus onto a child
-		//						if (DoesNavigationViewItemHaveChildren(nextFocusableNVI))
-		//						{
-		//							// Focus on last lowest level visible container
-		//							if (var childRepeater = nextFocusableNVIImpl.GetRepeater())
-		//                {
-		//								if (var lastFocusableElement = FocusManager.FindLastFocusableElement(childRepeater))
-		//                    {
-		//									if (var lastFocusableNVI = lastFocusableElement as Control())
-		//                        {
-		//										args.Handled(lastFocusableNVI.Focus(FocusState.Keyboard));
-		//									}
-		//								}
-
-		//					else
-		//								{
-		//									args.Handled(nextFocusableNVIImpl.Focus(FocusState.Keyboard));
-		//								}
-
-		//							}
-		//						}
-		//						else
-		//						{
-		//							// Traversing up a list where XYKeyboardFocus will result in correct behavior
-		//							shouldHandleFocus = false;
-		//						}
-		//					}
-		//				}
-
-		//				// We are at the top of the list, focus on parent
-		//				if (shouldHandleFocus && !args.Handled() && nviImpl.Depth() > 0)
-		//				{
-		//					if (var parentContainer = GetParentNavigationViewItemForContainer(nvi))
-		//        {
-		//						args.Handled(parentContainer.Focus(FocusState.Keyboard));
-		//					}
-		//				}
-		//			}
-
-		//			// If item has focusable children, move focus to first focusable child, otherise just defer to default XYKeyboardFocus behavior
-		//			void FocusNextDownItem(NavigationViewItem nvi,  KeyRoutedEventArgs args)
-		//{
-		//				if (args.OriginalSource() != nvi)
-		//				{
-		//					return;
-		//				}
-
-		//				if (DoesNavigationViewItemHaveChildren(nvi))
-		//				{
-		//					var nviImpl = get_self<NavigationViewItem>(nvi);
-		//					if (var childRepeater = nviImpl.GetRepeater())
-		//        {
-		//						var firstFocusableElement = FocusManager.FindFirstFocusableElement(childRepeater);
-		//						if (var controlFirst = firstFocusableElement as Control())
-		//            {
-		//							args.Handled(controlFirst.Focus(FocusState.Keyboard));
-		//						}
-		//					}
-		//				}
-		//			}
-
-		//			void KeyboardFocusFirstItemFromItem(NavigationViewItemBasenvib)
-		//			{
-		//				var firstElement = [this, nvib]()
-
-		//	{
-		//					var parentIR = GetParentRootItemsRepeaterForContainer(nvib);
-		//					return parentIR.TryGetElement(0);
-		//				} ();
-
-		//				if (var controlFirst = firstElement as Control())
-		//    {
-		//				controlFirst.Focus(FocusState.Keyboard);
-		//			}
-		//		}
-
-		//		void KeyboardFocusLastItemFromItem(NavigationViewItemBasenvib)
-		//		{
-		//			var parentIR = GetParentRootItemsRepeaterForContainer(nvib);
-
-		//			if (var itemsSourceView = parentIR.ItemsSourceView())
-		//    {
-		//				var lastIndex = itemsSourceView.Count() - 1;
-		//				if (var lastElement = parentIR.TryGetElement(lastIndex))
-		//        {
-		//					if (var controlLast = lastElement as Control())
-		//            {
-		//						controlLast.Focus(FocusState.Programmatic);
-		//					}
-		//				}
-		//			}
-		//		}
-
-		//		void OnRepeaterGettingFocus(objectsender, GettingFocusEventArgs args)
-		//		{
-		//			// if focus change was invoked by tab key
-		//			// and there is selected item in ItemsRepeater that gatting focus
-		//			// we should put focus on selected item
-		//			if (m_TabKeyPrecedesFocusChange && args.InputDevice() == FocusInputDeviceKind.Keyboard && m_selectionModel.SelectedIndex())
-		//			{
-		//				if (var oldFocusedElement = args.OldFocusedElement())
-		//        {
-		//					if (var newRootItemsRepeater = sender as ItemsRepeater())
-		//            {
-		//						var isFocusOutsideCurrentRootRepeater = [this, oldFocusedElement, newRootItemsRepeater]()
-
-		//				{
-		//							bool isFocusOutsideCurrentRootRepeater = true;
-		//							var treeWalkerCursor = oldFocusedElement;
-
-		//							// check if last focused element was in same root repeater
-		//							while (treeWalkerCursor)
-		//							{
-		//								if (var oldFocusedNavigationItemBase = treeWalkerCursor as NavigationViewItemBase())
-		//                        {
-		//									var oldParentRootRepeater = GetParentRootItemsRepeaterForContainer(oldFocusedNavigationItemBase);
-		//									isFocusOutsideCurrentRootRepeater = oldParentRootRepeater != newRootItemsRepeater;
-		//									break;
-		//								}
-
-		//								treeWalkerCursor = VisualTreeHelper.GetParent(treeWalkerCursor);
-		//							}
-
-		//							return isFocusOutsideCurrentRootRepeater;
-		//						} ();
-
-		//						var rootRepeaterForSelectedItem = [this]()
-
-		//				{
-		//							if (IsTopNavigationView())
-		//							{
-		//								return m_selectionModel.SelectedIndex().GetAt(0) == c_mainMenuBlockIndex ? m_topNavRepeater : m_topNavFooterMenuRepeater;
-		//							}
-		//							return m_selectionModel.SelectedIndex().GetAt(0) == c_mainMenuBlockIndex ? m_leftNavRepeater : m_leftNavFooterMenuRepeater;
-		//						} ();
-
-		//						// If focus is coming from outside the root repeater,
-		//						// and selected item is within current repeater
-		//						// we should put focus on selected item
-		//						if (var argsAsIGettingFocusEventArgs2 = args as IGettingFocusEventArgs2())
-		//                {
-		//							if (newRootItemsRepeater == rootRepeaterForSelectedItem && isFocusOutsideCurrentRootRepeater)
-		//							{
-		//								var selectedContainer = GetContainerForIndexPath(m_selectionModel.SelectedIndex(), true /* lastVisible */);
-		//								if (argsAsIGettingFocusEventArgs2.TrySetNewFocusedElement(selectedContainer))
-		//								{
-		//									args.Handled(true);
-		//								}
-		//							}
-		//						}
-		//					}
-		//				}
-		//			}
-
-		//			m_TabKeyPrecedesFocusChange = false;
-		//		}
-
-		//		void OnNavigationViewItemOnGotFocus(objectsender, RoutedEventArgs e)
-		//		{
-		//			if (var nvi = sender as NavigationViewItem())
-		//    {
-		//				// Achieve selection follows focus behavior
-		//				if (IsNavigationViewListSingleSelectionFollowsFocus())
-		//				{
-		//					// if nvi is already selected we don't need to invoke it again
-		//					// otherwise ItemInvoked fires twice when item was tapped
-		//					// or fired when window gets focus
-		//					if (nvi.SelectsOnInvoked() && !nvi.IsSelected())
-		//					{
-		//						if (IsTopNavigationView())
-		//						{
-		//							if (var parentIR = GetParentItemsRepeaterForContainer(nvi))
-		//                    {
-		//								if (parentIR != m_topNavRepeaterOverflowView)
-		//								{
-		//									OnNavigationViewItemInvoked(nvi);
-		//								}
-		//							}
-		//						}
-		//						else
-		//						{
-		//							OnNavigationViewItemInvoked(nvi);
-		//						}
-		//					}
-		//				}
-		//			}
-		//		}
-
-		//		void OnSettingsInvoked()
-		//		{
-		//			var settingsItem = m_settingsItem;
-		//			if (settingsItem)
-		//			{
-		//				OnNavigationViewItemInvoked(settingsItem);
-		//			}
-		//		}
-
-		//		void OnPreviewKeyDown(KeyRoutedEventArgse)
-		//		{
-		//			m_TabKeyPrecedesFocusChange = false;
-		//			__super.OnPreviewKeyDown(e);
-		//		}
-
-		//		void OnKeyDown(KeyRoutedEventArgse)
-		//		{
-		//			var eventArgs = e;
-		//			var key = eventArgs.Key();
-
-		//			bool handled = false;
-		//			m_TabKeyPrecedesFocusChange = false;
-
-		//			switch (key)
-		//			{
-		//				case VirtualKey.GamepadView:
-		//					if (!IsPaneOpen() && !IsTopNavigationView())
-		//					{
-		//						OpenPane();
-		//						handled = true;
-		//					}
-		//					break;
-		//				case VirtualKey.GoBack:
-		//				case VirtualKey.XButton1:
-		//					if (IsPaneOpen() && IsLightDismissible())
-		//					{
-		//						handled = AttemptClosePaneLightly();
-		//					}
-		//					break;
-		//				case VirtualKey.GamepadLeftShoulder:
-		//					handled = BumperNavigation(-1);
-		//					break;
-		//				case VirtualKey.GamepadRightShoulder:
-		//					handled = BumperNavigation(1);
-		//					break;
-		//				case VirtualKey.Tab:
-		//					// arrow keys navigation through ItemsRepeater don't get here
-		//					// so handle tab key to distinguish between tab focus and arrow focus navigation
-		//					m_TabKeyPrecedesFocusChange = true;
-		//					break;
-		//				case VirtualKey.Left:
-		//					var altState = CoreWindow.GetForCurrentThread().GetKeyState(VirtualKey.Menu);
-		//					bool isAltPressed = (altState & CoreVirtualKeyStates.Down) == CoreVirtualKeyStates.Down;
-
-		//					if (isAltPressed && IsPaneOpen() && IsLightDismissible())
-		//					{
-		//						handled = AttemptClosePaneLightly();
-		//					}
-
-		//					break;
-		//			}
-
-		//			eventArgs.Handled(handled);
-
-		//			__super.OnKeyDown(e);
-		//		}
-
-		//		bool BumperNavigation(int offset)
-		//		{
-		//			// By passing an offset indicating direction (ideally 1 or -1, meaning right or left respectively)
-		//			// we'll try to move focus to an item. We won't be moving focus to items in the overflow menu and this won't
-		//			// work on left navigation, only dealing with the top primary list here and only with items that don't have
-		//			// !SelectsOnInvoked set to true. If !SelectsOnInvoked is true, we'll skip the item and try focusing on the next one
-		//			// that meets the conditions, in the same direction.
-		//			var shoulderNavigationEnabledParamValue = ShoulderNavigationEnabled();
-		//			var shoulderNavigationForcedDisabled = (shoulderNavigationEnabledParamValue == NavigationViewShoulderNavigationEnabled.Never);
-		//			var shoulderNavigationOptionalDisabled = (shoulderNavigationEnabledParamValue == NavigationViewShoulderNavigationEnabled.WhenSelectionFollowsFocus
-		//			   && SelectionFollowsFocus() == NavigationViewSelectionFollowsFocus.Disabled);
-
-		//			if (!IsTopNavigationView()
-		//				|| shoulderNavigationOptionalDisabled
-		//				|| shoulderNavigationForcedDisabled)
-		//			{
-		//				return false;
-		//			}
-
-		//			var shoulderNavigationSelectionFollowsFocusEnabled = (SelectionFollowsFocus() == NavigationViewSelectionFollowsFocus.Enabled
-		//			   && shoulderNavigationEnabledParamValue == NavigationViewShoulderNavigationEnabled.WhenSelectionFollowsFocus);
-
-		//			var shoulderNavigationEnabled = (shoulderNavigationSelectionFollowsFocusEnabled
-		//			   || shoulderNavigationEnabledParamValue == NavigationViewShoulderNavigationEnabled.Always);
-
-		//			if (!shoulderNavigationEnabled)
-		//			{
-		//				return false;
-		//			}
-
-		//			var item = SelectedItem();
-
-		//			if (item)
-		//			{
-		//				if (var nvi = NavigationViewItemOrSettingsContentFromData(item))
-		//        {
-		//					var indexPath = GetIndexPathForContainer(nvi);
-		//					var isInFooter = indexPath.GetAt(0) == c_footerMenuBlockIndex;
-
-		//					var indexInMainList = isInFooter ? -1 : indexPath.GetAt(1);
-		//					var indexInFooter = isInFooter ? indexPath.GetAt(1) : -1;
-
-		//					var topNavRepeater = m_topNavRepeater;
-		//					var topPrimaryListSize = m_topDataProvider.GetPrimaryListSize();
-
-		//					var footerRepeater = m_topNavFooterMenuRepeater;
-		//					var footerItemsSize = FooterMenuItems().Size();
-
-		//					if (IsSettingsVisible())
-		//					{
-		//						footerItemsSize++;
-		//					}
-
-		//					if (indexInMainList >= 0)
-		//					{
-
-		//						if (SelectSelectableItemWithOf = indexInMainList, offset, topNavRepeater, topPrimaryListSize)
-		//                {
-		//							return true;
-		//						}
-
-		//						// No sutable item found in main list so try to select item in footer
-		//						if (offset > 0)
-		//						{
-		//							return SelectSelectableItemWithOf = -1, offset, footerRepeater, footerItemsSize;
-		//						}
-
-		//						return false;
-		//					}
-
-		//					if (indexInFooter >= 0)
-		//					{
-
-		//						if (SelectSelectableItemWithOf = indexInFooter, offset, footerRepeater, footerItemsSize)
-		//                {
-		//							return true;
-		//						}
-
-		//						// No sutable item found in footer so try to select item in main list
-		//						if (offset < 0)
-		//						{
-		//							return SelectSelectableItemWithOf = topPrimaryListSize, offset, topNavRepeater, topPrimaryListSize;
-		//						}
-		//					}
-		//				}
-		//			}
-
-		//			return false;
-		//		}
-
-		//		bool SelectSelectableItemWithOf = int startIndex, int offset, ItemsRepeater & repeater, int repeaterCollectionSize
-		//		{
-		//			startIndex += offset;
-		//while (startIndex > -1 && startIndex<repeaterCollectionSize)
-		//{
-		//			var newItem = repeater.TryGetElement(startIndex);
-		//			if (var newNavViewItem = newItem as NavigationViewItem())
-		//        {
-		//				// This is done to skip Separators or other items that are not NavigationViewItems
-		//				if (get_self<NavigationViewItem>(newNavViewItem).SelectsOnInvoked())
-		//				{
-		//					newNavViewItem.IsSelected(true);
-		//					return true;
-		//				}
-		//}
-
-		//startIndex += offset;
-		//		}
-		//return false;
-		//	}
+		// forceSetDisplayMode: On first call to SetDisplayMode, force setting to initial values
+		private void SetDisplayMode(NavigationViewDisplayMode displayMode, bool forceSetDisplayMode)
+		{
+			// Need to keep the VisualStateGroup "DisplayModeGroup" updated even if the actual
+			// display mode is not changed. This is due to the fact that there can be a transition between
+			// 'Minimal' and 'MinimalWithBackButton'.
+			UpdateVisualStateForDisplayModeGroup(displayMode);
+
+			if (forceSetDisplayMode || DisplayMode != displayMode)
+			{
+				// Update header visibility based on what the new display mode will be
+				UpdateHeaderVisibility(displayMode);
+
+				UpdatePaneTabFocusNavigation();
+
+				UpdatePaneToggleSize();
+
+				RaiseDisplayModeChanged(displayMode);
+			}
+		}
+
+		// To support TopNavigationView, DisplayModeGroup in visualstate(We call it VisualStateDisplayMode) is decoupled with DisplayMode.
+		// The VisualStateDisplayMode is the combination of TopNavigationView, DisplayMode, PaneDisplayMode.
+		// Here is the mapping:
+		//    TopNav . Minimal
+		//    PaneDisplayMode.Left || (PaneDisplayMode.Auto && DisplayMode.Expanded) . Expanded
+		//    PaneDisplayMode.LeftCompact || (PaneDisplayMode.Auto && DisplayMode.Compact) . Compact
+		//    Map others to Minimal or MinimalWithBackButton 
+		NavigationViewVisualStateDisplayMode GetVisualStateDisplayMode(NavigationViewDisplayMode displayMode)
+		{
+			var paneDisplayMode = PaneDisplayMode;
+
+			if (IsTopNavigationView())
+			{
+				return NavigationViewVisualStateDisplayMode.Minimal;
+			}
+
+			if (paneDisplayMode == NavigationViewPaneDisplayMode.Left ||
+				(paneDisplayMode == NavigationViewPaneDisplayMode.Auto && displayMode == NavigationViewDisplayMode.Expanded))
+			{
+				return NavigationViewVisualStateDisplayMode.Expanded;
+			}
+
+			if (paneDisplayMode == NavigationViewPaneDisplayMode.LeftCompact ||
+				(paneDisplayMode == NavigationViewPaneDisplayMode.Auto && displayMode == NavigationViewDisplayMode.Compact))
+			{
+				return NavigationViewVisualStateDisplayMode.Compact;
+			}
+
+			// In minimal mode, when the NavView is closed, the HeaderContent doesn't have
+			// its own dedicated space, and must 'share' the top of the NavView with the 
+			// pane toggle button ('hamburger' button) and the back button.
+			// When the NavView is open, the close button is taking space instead of the back button.
+			if (ShouldShowBackButton() || ShouldShowCloseButton())
+			{
+				return NavigationViewVisualStateDisplayMode.MinimalWithBackButton;
+			}
+			else
+			{
+				return NavigationViewVisualStateDisplayMode.Minimal;
+			}
+		}
+
+		private void UpdateVisualStateForDisplayModeGroup(NavigationViewDisplayMode displayMode)
+		{
+			var splitView = m_rootSplitView;
+			if (splitView != null)
+			{
+				var visualStateDisplayMode = GetVisualStateDisplayMode(displayMode);
+				var visualStateName = "";
+				var splitViewDisplayMode = SplitViewDisplayMode.Overlay;
+				var visualStateNameMinimal = "Minimal";
+
+				switch (visualStateDisplayMode)
+				{
+					case NavigationViewVisualStateDisplayMode.MinimalWithBackButton:
+						visualStateName = "MinimalWithBackButton";
+						splitViewDisplayMode = SplitViewDisplayMode.Overlay;
+						break;
+					case NavigationViewVisualStateDisplayMode.Minimal:
+						visualStateName = visualStateNameMinimal;
+						splitViewDisplayMode = SplitViewDisplayMode.Overlay;
+						break;
+					case NavigationViewVisualStateDisplayMode.Compact:
+						visualStateName = "Compact";
+						splitViewDisplayMode = SplitViewDisplayMode.CompactOverlay;
+						break;
+					case NavigationViewVisualStateDisplayMode.Expanded:
+						visualStateName = "Expanded";
+						splitViewDisplayMode = SplitViewDisplayMode.CompactInline;
+						break;
+				}
+
+				// When the pane is made invisible we need to collapse the pane part of the SplitView
+				if (!IsPaneVisible)
+				{
+					splitViewDisplayMode = SplitViewDisplayMode.CompactOverlay;
+				}
+
+				var handled = false;
+				if (visualStateName == visualStateNameMinimal && IsTopNavigationView())
+				{
+					// TopNavigationMinimal was introduced in 19H1. We need to fallback to Minimal if the customer uses an older template.
+					handled = VisualStateManager.GoToState(this, "TopNavigationMinimal", false /*useTransitions*/);
+				}
+				if (!handled)
+				{
+					VisualStateManager.GoToState(this, visualStateName, false /*useTransitions*/);
+				}
+
+				// Updating the splitview 'DisplayMode' property in some diplaymodes causes children to be added to the popup root.
+				// This causes an exception if the NavigationView is in the popup root itself (as SplitView is trying to add children to the tree while it is being measured).
+				// Due to this, we want to defer updating this property for all calls coming from `OnApplyTemplate`to the OnLoaded function.
+				if (m_fromOnApplyTemplate)
+				{
+					m_updateVisualStateForDisplayModeFromOnLoaded = true;
+				}
+				else
+				{
+					splitView.DisplayMode = splitViewDisplayMode;
+				}
+			}
+		}
+
+		private void OnNavigationViewItemTapped(object sender, TappedRoutedEventArgs args)
+		{
+			if (sender is NavigationViewItem nvi)
+			{
+				OnNavigationViewItemInvoked(nvi);
+				nvi.Focus(FocusState.Pointer);
+				args.Handled = true;
+			}
+		}
+
+		private void OnNavigationViewItemKeyDown(object sender, KeyRoutedEventArgs args)
+		{
+			if ((args.OriginalKey == VirtualKey.GamepadA
+				|| args.Key == VirtualKey.Enter
+				|| args.Key == VirtualKey.Space))
+			{
+				// Only handle those keys if the key is not being held down!
+				if (!args.KeyStatus.WasKeyDown)
+				{
+					if (sender is NavigationViewItem nvi)
+					{
+						HandleKeyEventForNavigationViewItem(nvi, args);
+					}
+				}
+			}
+			else
+			{
+				if (sender is NavigationViewItem nvi)
+				{
+					HandleKeyEventForNavigationViewItem(nvi, args);
+				}
+			}
+		}
+
+		private void HandleKeyEventForNavigationViewItem(NavigationViewItem nvi, KeyRoutedEventArgs args)
+		{
+			var key = args.Key;
+			switch (key)
+			{
+				case VirtualKey.Enter:
+				case VirtualKey.Space:
+					args.Handled = true;
+					OnNavigationViewItemInvoked(nvi);
+					break;
+				case VirtualKey.Home:
+					args.Handled = true;
+					KeyboardFocusFirstItemFromItem(nvi);
+					break;
+				case VirtualKey.End:
+					args.Handled = true;
+					KeyboardFocusLastItemFromItem(nvi);
+					break;
+				case VirtualKey.Down:
+					FocusNextDownItem(nvi, args);
+					break;
+				case VirtualKey.Up:
+					FocusNextUpItem(nvi, args);
+					break;
+			}
+		}
+
+		private void FocusNextUpItem(NavigationViewItem nvi, KeyRoutedEventArgs args)
+		{
+			if (args.OriginalSource != nvi)
+			{
+				return;
+			}
+
+			bool shouldHandleFocus = true;
+			var nviImpl = nvi;
+			var nextFocusableElement = FocusManager.FindNextFocusableElement(FocusNavigationDirection.Up);
+
+			if (nextFocusableElement is NavigationViewItem nextFocusableNVI)
+			{
+
+				var nextFocusableNVIImpl = nextFocusableNVI;
+
+				if (nextFocusableNVIImpl.Depth == nviImpl.Depth)
+				{
+					// If we not at the top of the list for our current depth and the item above us has children, check whether we should move focus onto a child
+					if (DoesNavigationViewItemHaveChildren(nextFocusableNVI))
+					{
+						// Focus on last lowest level visible container
+						var childRepeater = nextFocusableNVIImpl.GetRepeater();
+						if (childRepeater != null)
+						{
+							var lastFocusableElement = FocusManager.FindLastFocusableElement(childRepeater);
+							if (lastFocusableElement != null)
+							{
+								if (lastFocusableElement is Control lastFocusableNVI)
+								{
+									args.Handled = lastFocusableNVI.Focus(FocusState.Keyboard);
+								}
+							}
+
+							else
+							{
+								args.Handled = nextFocusableNVIImpl.Focus(FocusState.Keyboard);
+							}
+
+						}
+					}
+					else
+					{
+						// Traversing up a list where XYKeyboardFocus will result in correct behavior
+						shouldHandleFocus = false;
+					}
+				}
+			}
+
+			// We are at the top of the list, focus on parent
+			if (shouldHandleFocus && !args.Handled && nviImpl.Depth > 0)
+			{
+				var parentContainer = GetParentNavigationViewItemForContainer(nvi);
+				if (parentContainer != null)
+				{
+					args.Handled = parentContainer.Focus(FocusState.Keyboard);
+				}
+			}
+		}
+
+		// If item has focusable children, move focus to first focusable child, otherise just defer to default XYKeyboardFocus behavior
+		private void FocusNextDownItem(NavigationViewItem nvi, KeyRoutedEventArgs args)
+		{
+			if (args.OriginalSource != nvi)
+			{
+				return;
+			}
+
+			if (DoesNavigationViewItemHaveChildren(nvi))
+			{
+				var nviImpl = nvi;
+				var childRepeater = nviImpl.GetRepeater();
+				if (childRepeater != null)
+				{
+					var firstFocusableElement = FocusManager.FindFirstFocusableElement(childRepeater);
+					if (firstFocusableElement is Control controlFirst)
+					{
+						args.Handled = controlFirst.Focus(FocusState.Keyboard);
+					}
+				}
+			}
+		}
+
+		private void KeyboardFocusFirstItemFromItem(NavigationViewItemBase nvib)
+		{
+			var parentIR = GetParentRootItemsRepeaterForContainer(nvib);
+			var firstElement = parentIR.TryGetElement(0);
+
+			if (firstElement is Control controlFirst)
+			{
+				controlFirst.Focus(FocusState.Keyboard);
+			}
+		}
+
+		private void KeyboardFocusLastItemFromItem(NavigationViewItemBase nvib)
+		{
+			var parentIR = GetParentRootItemsRepeaterForContainer(nvib);
+
+			var itemsSourceView = parentIR.ItemsSourceView;
+			if (itemsSourceView != null)
+			{
+				var lastIndex = itemsSourceView.Count - 1;
+				var lastElement = parentIR.TryGetElement(lastIndex);
+				if (lastElement != null)
+				{
+					if (lastElement is Control controlLast)
+					{
+						controlLast.Focus(FocusState.Programmatic);
+					}
+				}
+			}
+		}
+
+		private void OnRepeaterGettingFocus(object sender, GettingFocusEventArgs args)
+		{
+			// if focus change was invoked by tab key
+			// and there is selected item in ItemsRepeater that gatting focus
+			// we should put focus on selected item
+			if (m_TabKeyPrecedesFocusChange && args.InputDevice == FocusInputDeviceKind.Keyboard && m_selectionModel.SelectedIndex())
+			{
+				var oldFocusedElement = args.OldFocusedElement;
+				if (oldFocusedElement != null)
+				{
+					if (sender is ItemsRepeater newRootItemsRepeater)
+					{
+						bool GetIsFocusOutsideCurrentRootRepeater(DependencyObject oldFocusedElement, ItemsRepeater newRootItemsRepeater)
+						{
+							bool isFocusOutsideCurrentRootRepeater = true;
+							var treeWalkerCursor = oldFocusedElement;
+
+							// check if last focused element was in same root repeater
+							while (treeWalkerCursor != null)
+							{
+								if (treeWalkerCursor is NavigationViewItemBase oldFocusedNavigationItemBase)
+								{
+									var oldParentRootRepeater = GetParentRootItemsRepeaterForContainer(oldFocusedNavigationItemBase);
+									isFocusOutsideCurrentRootRepeater = oldParentRootRepeater != newRootItemsRepeater;
+									break;
+								}
+
+								treeWalkerCursor = VisualTreeHelper.GetParent(treeWalkerCursor);
+							}
+
+							return isFocusOutsideCurrentRootRepeater;
+						}
+
+						var isFocusOutsideCurrentRootRepeater = GetIsFocusOutsideCurrentRootRepeater(oldFocusedElement, newRootItemsRepeater)
+
+						ItemsRepeater GetRootRepeaterForSelectedItem()
+						{
+							if (IsTopNavigationView())
+							{
+								return m_selectionModel.SelectedIndex.GetAt(0) == c_mainMenuBlockIndex ? m_topNavRepeater : m_topNavFooterMenuRepeater;
+							}
+							return m_selectionModel.SelectedIndex().GetAt(0) == c_mainMenuBlockIndex ? m_leftNavRepeater : m_leftNavFooterMenuRepeater;
+						}
+
+						var rootRepeaterForSelectedItem = GetRootRepeaterForSelectedItem();
+
+						// If focus is coming from outside the root repeater,
+						// and selected item is within current repeater
+						// we should put focus on selected item
+						if (args is GettingFocusEventArgs argsAsIGettingFocusEventArgs2)
+						{
+							if (newRootItemsRepeater == rootRepeaterForSelectedItem && isFocusOutsideCurrentRootRepeater)
+							{
+								var selectedContainer = GetContainerForIndexPath(m_selectionModel.SelectedIndex(), true /* lastVisible */);
+								if (argsAsIGettingFocusEventArgs2.TrySetNewFocusedElement(selectedContainer))
+								{
+									args.Handled = true;
+								}
+							}
+						}
+					}
+				}
+			}
+
+			m_TabKeyPrecedesFocusChange = false;
+		}
+
+		private void OnNavigationViewItemOnGotFocus(object sender, RoutedEventArgs e)
+		{
+			if (sender is NavigationViewItem nvi)
+			{
+				// Achieve selection follows focus behavior
+				if (IsNavigationViewListSingleSelectionFollowsFocus())
+				{
+					// if nvi is already selected we don't need to invoke it again
+					// otherwise ItemInvoked fires twice when item was tapped
+					// or fired when window gets focus
+					if (nvi.SelectsOnInvoked && !nvi.IsSelected)
+					{
+						if (IsTopNavigationView())
+						{
+							var parentIR = GetParentItemsRepeaterForContainer(nvi);
+							if (parentIR != null)
+							{
+								if (parentIR != m_topNavRepeaterOverflowView)
+								{
+									OnNavigationViewItemInvoked(nvi);
+								}
+							}
+						}
+						else
+						{
+							OnNavigationViewItemInvoked(nvi);
+						}
+					}
+				}
+			}
+		}
+
+		private void OnSettingsInvoked()
+		{
+			var settingsItem = m_settingsItem;
+			if (settingsItem != null)
+			{
+				OnNavigationViewItemInvoked(settingsItem);
+			}
+		}
+
+		protected override void OnPreviewKeyDown(KeyRoutedEventArgs e)
+		{
+			m_TabKeyPrecedesFocusChange = false;
+			base.OnPreviewKeyDown(e);
+		}
+
+		protected override void OnKeyDown(KeyRoutedEventArgs e)
+		{
+			var eventArgs = e;
+			var key = eventArgs.Key;
+
+			bool handled = false;
+			m_TabKeyPrecedesFocusChange = false;
+
+			switch (key)
+			{
+				case VirtualKey.GamepadView:
+					if (!IsPaneOpen && !IsTopNavigationView())
+					{
+						OpenPane();
+						handled = true;
+					}
+					break;
+				case VirtualKey.GoBack:
+				case VirtualKey.XButton1:
+					if (IsPaneOpen && IsLightDismissible())
+					{
+						handled = AttemptClosePaneLightly();
+					}
+					break;
+				case VirtualKey.GamepadLeftShoulder:
+					handled = BumperNavigation(-1);
+					break;
+				case VirtualKey.GamepadRightShoulder:
+					handled = BumperNavigation(1);
+					break;
+				case VirtualKey.Tab:
+					// arrow keys navigation through ItemsRepeater don't get here
+					// so handle tab key to distinguish between tab focus and arrow focus navigation
+					m_TabKeyPrecedesFocusChange = true;
+					break;
+				case VirtualKey.Left:
+					var altState = CoreWindow.GetForCurrentThread().GetKeyState(VirtualKey.Menu);
+					bool isAltPressed = (altState & CoreVirtualKeyStates.Down) == CoreVirtualKeyStates.Down;
+
+					if (isAltPressed && IsPaneOpen && IsLightDismissible())
+					{
+						handled = AttemptClosePaneLightly();
+					}
+
+					break;
+			}
+
+			eventArgs.Handled = handled;
+
+			base.OnKeyDown(e);
+		}
+
+		private bool BumperNavigation(int offset)
+		{
+			// By passing an offset indicating direction (ideally 1 or -1, meaning right or left respectively)
+			// we'll try to move focus to an item. We won't be moving focus to items in the overflow menu and this won't
+			// work on left navigation, only dealing with the top primary list here and only with items that don't have
+			// !SelectsOnInvoked set to true. If !SelectsOnInvoked is true, we'll skip the item and try focusing on the next one
+			// that meets the conditions, in the same direction.
+			var shoulderNavigationEnabledParamValue = ShoulderNavigationEnabled;
+			var shoulderNavigationForcedDisabled = (shoulderNavigationEnabledParamValue == NavigationViewShoulderNavigationEnabled.Never);
+			var shoulderNavigationOptionalDisabled = (shoulderNavigationEnabledParamValue == NavigationViewShoulderNavigationEnabled.WhenSelectionFollowsFocus
+			   && SelectionFollowsFocus == NavigationViewSelectionFollowsFocus.Disabled);
+
+			if (!IsTopNavigationView()
+				|| shoulderNavigationOptionalDisabled
+				|| shoulderNavigationForcedDisabled)
+			{
+				return false;
+			}
+
+			var shoulderNavigationSelectionFollowsFocusEnabled = (SelectionFollowsFocus == NavigationViewSelectionFollowsFocus.Enabled
+			   && shoulderNavigationEnabledParamValue == NavigationViewShoulderNavigationEnabled.WhenSelectionFollowsFocus);
+
+			var shoulderNavigationEnabled = (shoulderNavigationSelectionFollowsFocusEnabled
+			   || shoulderNavigationEnabledParamValue == NavigationViewShoulderNavigationEnabled.Always);
+
+			if (!shoulderNavigationEnabled)
+			{
+				return false;
+			}
+
+			var item = SelectedItem;
+
+			if (item != null)
+			{
+				var nvi = NavigationViewItemOrSettingsContentFromData(item);
+				if (nvi != null)
+				{
+					var indexPath = GetIndexPathForContainer(nvi);
+					var isInFooter = indexPath.GetAt(0) == c_footerMenuBlockIndex;
+
+					var indexInMainList = isInFooter ? -1 : indexPath.GetAt(1);
+					var indexInFooter = isInFooter ? indexPath.GetAt(1) : -1;
+
+					var topNavRepeater = m_topNavRepeater;
+					var topPrimaryListSize = m_topDataProvider.GetPrimaryListSize();
+
+					var footerRepeater = m_topNavFooterMenuRepeater;
+					var footerItemsSize = FooterMenuItems.Count;
+
+					if (IsSettingsVisible)
+					{
+						footerItemsSize++;
+					}
+
+					if (indexInMainList >= 0)
+					{
+
+						if (SelectSelectableItemWithOffset(indexInMainList, offset, topNavRepeater, topPrimaryListSize))
+						{
+							return true;
+						}
+
+						// No sutable item found in main list so try to select item in footer
+						if (offset > 0)
+						{
+							return SelectSelectableItemWithOffset(-1, offset, footerRepeater, footerItemsSize);
+						}
+
+						return false;
+					}
+
+					if (indexInFooter >= 0)
+					{
+
+						if (SelectSelectableItemWithOffset(indexInFooter, offset, footerRepeater, footerItemsSize))
+						{
+							return true;
+						}
+
+						// No sutable item found in footer so try to select item in main list
+						if (offset < 0)
+						{
+							return SelectSelectableItemWithOffset(topPrimaryListSize, offset, topNavRepeater, topPrimaryListSize);
+						}
+					}
+				}
+			}
+
+			return false;
+		}
+
+		private bool SelectSelectableItemWithOffset(int startIndex, int offset, ItemsRepeater repeater, int repeaterCollectionSize)
+		{
+			startIndex += offset;
+			while (startIndex > -1 && startIndex < repeaterCollectionSize)
+			{
+				var newItem = repeater.TryGetElement(startIndex);
+				if (newItem is NavigationViewItem newNavViewItem)
+				{
+					// This is done to skip Separators or other items that are not NavigationViewItems
+					if (newNavViewItem.SelectsOnInvoked)
+					{
+						newNavViewItem.IsSelected = true;
+						return true;
+					}
+				}
+
+				startIndex += offset;
+			}
+			return false;
+		}
 
 		public object MenuItemFromContainer(DependencyObject container)
 		{
@@ -3175,2464 +3188,2476 @@ namespace Microsoft.UI.Xaml.Controls
 			}
 		}
 
-		//	NavigationTransitionInfo CreateNavigationTransitionInfo(NavigationRecommendedTransitionDirection recommendedTransitionDirection)
-		//{
-		//	// In current implementation, if click is from overflow item, just recommend FromRight Slide animation.
-		//	if (recommendedTransitionDirection == NavigationRecommendedTransitionDirection.FromOverflow)
-		//	{
-		//		recommendedTransitionDirection = NavigationRecommendedTransitionDirection.FromRight;
-		//	}
-
-		//	if ((recommendedTransitionDirection == NavigationRecommendedTransitionDirection.FromLeft
-		//		|| recommendedTransitionDirection == NavigationRecommendedTransitionDirection.FromRight)
-		//		&& SharedHelpers.IsRS5OrHigher())
-		//	{
-		//		SlideNavigationTransitionInfo sliderNav;
-		//		SlideNavigationTransitionEffect effect =
-		//		   recommendedTransitionDirection == NavigationRecommendedTransitionDirection.FromRight ?
-		//		   SlideNavigationTransitionEffect.FromRight :
-		//		   SlideNavigationTransitionEffect.FromLeft;
-		//		// PR 1895355: Bug 17724768: Remove Side-to-Side navigation transition velocity key
-		//		// https://microsoft.visualstudio.com/_git/os/commit/7d58531e69bc8ad1761cff938d8db25f6fb6a841
-		//		// We want to use Effect, but it's not in all os of rs5. as a workaround, we only apply effect to the os which is already remove velocity key.
-		//		if (var sliderNav2 = sliderNav as ISlideNavigationTransitionInfo2())
-		//        {
-		//	sliderNav.Effect(effect);
-		//}
-		//return sliderNav;
-		//		}
-
-		//		else
-		//{
-		//	EntranceNavigationTransitionInfo defaultInfo;
-		//	return defaultInfo;
-		//}
-		//	}
-
-		//	NavigationRecommendedTransitionDirection GetRecommendedTransitionDirection(DependencyObject & prev, DependencyObject & next)
-		//{
-		//	var recommendedTransitionDirection = NavigationRecommendedTransitionDirection.Default;
-		//	var ir = m_topNavRepeater;
-
-		//	if (prev && next && ir)
-		//	{
-		//		var prevIndexPath = GetIndexPathForContainer(prev as NavigationViewItemBase());
-		//		var nextIndexPath = GetIndexPathForContainer(next as NavigationViewItemBase());
-
-		//		var compare = prevIndexPath.CompareTo(nextIndexPath);
-
-		//		switch (compare)
-		//		{
-		//			case -1:
-		//				recommendedTransitionDirection = NavigationRecommendedTransitionDirection.FromRight;
-		//				break;
-		//			case 1:
-		//				recommendedTransitionDirection = NavigationRecommendedTransitionDirection.FromLeft;
-		//				break;
-		//			default:
-		//				recommendedTransitionDirection = NavigationRecommendedTransitionDirection.Default;
-		//				break;
-		//		}
-		//	}
-		//	return recommendedTransitionDirection;
-		//}
-
-		//NavigationViewTemplateSettings* GetTemplateSettings()
-		//{
-		//	return get_self<NavigationViewTemplateSettings>(TemplateSettings());
-		//}
-
-		//bool IsNavigationViewListSingleSelectionFollowsFocus()
-		//{
-		//	return (SelectionFollowsFocus() == NavigationViewSelectionFollowsFocus.Enabled);
-		//}
-
-		//void UpdateSingleSelectionFollowsFocusTemplateSetting()
-		//{
-		//	GetTemplateSettings().SingleSelectionFollowsFocus(IsNavigationViewListSingleSelectionFollowsFocus());
-		//}
-
-		//void OnMenuItemsSourceCollectionChanged(object, object)
-		//{
-		//	if (!IsTopNavigationView())
-		//	{
-		//		if (var repeater = m_leftNavRepeater)
-		//        {
-		//	repeater.UpdateLayout();
-		//}
-		//UpdatePaneLayout();
-		//		}
-		//	}
-
-		//	void OnSelectedItemPropertyChanged(DependencyPropertyChangedEventArgs args)
-		//{
-
-		//	var newItem = args.NewValue();
-		//	var oldItem = args.OldValue();
-
-		//	ChangeSelection(oldItem, newItem);
-
-		//	if (m_appliedTemplate && IsTopNavigationView())
-		//	{
-		//		if (!m_layoutUpdatedToken ||
-		//			(newItem && m_topDataProvider.IndexOf(newItem) != itemNotFound && m_topDataProvider.IndexOf(newItem, NavigationViewSplitVectorID.PrimaryList) == itemNotFound)) // selection is in overflow
-		//		{
-		//			InvalidateTopNavPrimaryLayout();
-		//		}
-		//	}
-		//}
-
-		//void SetSelectedItemAndExpectItemInvokeWhenSelectionChangedIfNotInvokedFromAPI(object item)
-		//{
-		//	SelectedItem(item);
-		//}
-
-		//void ChangeSelectStatusForItem(object item, bool selected)
-		//{
-		//	if (var container = NavigationViewItemOrSettingsContentFromData(item))
-		//    {
-		//	// If we unselect an item, ListView doesn't tolerate setting the SelectedItem to null. 
-		//	// Instead we remove IsSelected from the item itself, and it make ListView to unselect it.
-		//	// If we select an item, we follow the unselect to simplify the code.
-		//	container.IsSelected(selected);
-		//}
-
-		//	else if (selected)
-		//{
-		//	// If we are selecting an item and have not found a realized container for it,
-		//	// we may need to manually resolve a container for this in order to update the
-		//	// SelectionModel's selected IndexPath.
-		//	var ip = GetIndexPathOfItem(item);
-		//	if (ip && ip.GetSize() > 0)
-		//	{
-		//		// The SelectedItem property has already been updated. So we want to block any logic from executing
-		//		// in the SelectionModel selection changed callback.
-		//		var scopeGuard = gsl.finally([this]()
-
-
-		//				{
-		//			m_shouldIgnoreNextSelectionChange = false;
-		//		});
-		//		m_shouldIgnoreNextSelectionChange = true;
-		//		UpdateSelectionModelSelection(ip);
-		//		}
-		//	}
-		//}
-
-		//bool IsSettingsItem(objectitem)
-		//{
-		//	bool isSettingsItem = false;
-		//	if (item)
-		//	{
-		//		if (var settingItem = m_settingsItem)
-		//        {
-		//	isSettingsItem = (settingItem == item) || (settingItem.Content() == item);
-		//}
-		//			}
-		//			return isSettingsItem;
-		//		}
-
-		//		void UnselectPrevItem(objectprevItem, objectnextItem)
-		//{
-		//	if (prevItem && prevItem != nextItem)
-		//	{
-		//		var scopeGuard = gsl.finally([this, setIgnoreNextSelectionChangeToFalse = !m_shouldIgnoreNextSelectionChange]()
-
-
-		//		{
-		//			if (setIgnoreNextSelectionChangeToFalse)
-		//			{
-		//				m_shouldIgnoreNextSelectionChange = false;
-		//			}
-		//		});
-		//m_shouldIgnoreNextSelectionChange = true;
-		//ChangeSelectStatusForItem(prevItem, false /*selected*/);
-		//				}
-		//			}
-
-		//			void UndoSelectionAndRevertSelectionTo(objectprevSelectedItem, objectnextItem)
-		//{
-		//	object selectedItem{ null };
-		//	if (prevSelectedItem)
-		//	{
-		//		if (IsSelectionSuppressed(prevSelectedItem))
-		//		{
-		//			AnimateSelectionChanged(null);
-		//		}
-		//		else
-		//		{
-		//			ChangeSelectStatusForItem(prevSelectedItem, true /*selected*/);
-		//			AnimateSelectionChangedToItem(prevSelectedItem);
-		//			selectedItem = prevSelectedItem;
-		//		}
-		//	}
-		//	else
-		//	{
-		//		// Bug 18033309, A SelectsOnInvoked=false item is clicked, if we don't unselect it from listview, the second click will not raise ItemClicked
-		//		// because listview doesn't raise SelectionChange.
-		//		ChangeSelectStatusForItem(nextItem, false /*selected*/);
-		//	}
-		//	SelectedItem(selectedItem);
-		//}
-
-		//void CloseTopNavigationViewFlyout()
-		//{
-		//	if (var button = m_topNavOverflowButton)
-		//    {
-		//	if (var flyout = button.Flyout())
-		//        {
-		//		flyout.Hide();
-		//	}
-		//}
-		//		}
-
-		//		void UpdateVisualState(bool useTransitions)
-		//{
-		//	if (m_appliedTemplate)
-		//	{
-		//		var box = AutoSuggestBox();
-		//		VisualStateManager.GoToState(this, box ? "AutoSuggestBoxVisible" : "AutoSuggestBoxCollapsed", false /*useTransitions*/);
-
-		//		bool isVisible = IsSettingsVisible();
-		//		VisualStateManager.GoToState(this, isVisible ? "SettingsVisible" : "SettingsCollapsed", false /*useTransitions*/);
-
-		//		if (IsTopNavigationView())
-		//		{
-		//			UpdateVisualStateForOverflowButton();
-		//		}
-		//		else
-		//		{
-		//			UpdateLeftNavigationOnlyVisualState(useTransitions);
-		//		}
-		//	}
-		//}
-
-		//void UpdateVisualStateForOverflowButton()
-		//{
-		//	var state = (OverflowLabelMode() == NavigationViewOverflowLabelMode.MoreLabel) ?
-		//		"OverflowButtonWithLabel" :
-		//		"OverflowButtonNoLabel";
-		//	VisualStateManager.GoToState(this, state, false /* useTransitions*/);
-		//}
-
-		//void UpdateLeftNavigationOnlyVisualState(bool useTransitions)
-		//{
-		//	bool isToggleButtonVisible = IsPaneToggleButtonVisible();
-		//	VisualStateManager.GoToState(this, isToggleButtonVisible ? "TogglePaneButtonVisible" : "TogglePaneButtonCollapsed", false /*useTransitions*/);
-		//}
-
-		//void InvalidateTopNavPrimaryLayout()
-		//{
-		//	if (m_appliedTemplate && IsTopNavigationView())
-		//	{
-		//		InvalidateMeasure();
-		//	}
-		//}
-
-		//float MeasureTopNavigationViewDesiredWidth(Size &availableSize)
-		//{
-		//	return LayoutUtils.MeasureAndGetDesiredWidthFor(m_topNavGrid, availableSize);
-		//}
-
-		//float MeasureTopNavMenuItemsHostDesiredWidth(Size &availableSize)
-		//{
-		//	return LayoutUtils.MeasureAndGetDesiredWidthFor(m_topNavRepeater, availableSize);
-		//}
-
-		//float GetTopNavigationViewActualWidth()
-		//{
-		//	double width = LayoutUtils.GetActualWidthFor(m_topNavGrid);
-		//	MUX_ASSERT(width < std.numeric_limits<float>.max());
-		//	return (float)(width);
-		//}
-
-		//bool HasTopNavigationViewItemNotInPrimaryList()
-		//{
-		//	return m_topDataProvider.GetPrimaryListSize() != m_topDataProvider.Size();
-		//}
-
-		//void ResetAndRearrangeTopNavItems(Size &availableSize)
-		//{
-		//	if (HasTopNavigationViewItemNotInPrimaryList())
-		//	{
-		//		m_topDataProvider.MoveAllItemsToPrimaryList();
-		//	}
-		//	ArrangeTopNavItems(availableSize);
-		//}
-
-		//void HandleTopNavigationMeasureOverride(Size &availableSize)
-		//{
-		//	// Determine if TopNav is in Overflow
-		//	if (HasTopNavigationViewItemNotInPrimaryList())
-		//	{
-		//		HandleTopNavigationMeasureOverrideOverflow(availableSize);
-		//	}
-		//	else
-		//	{
-		//		HandleTopNavigationMeasureOverrideNormal(availableSize);
-		//	}
-
-		//	if (m_topNavigationMode == TopNavigationViewLayoutState.Uninitialized)
-		//	{
-		//		m_topNavigationMode = TopNavigationViewLayoutState.Initialized;
-		//	}
-		//}
-
-		//void HandleTopNavigationMeasureOverrideNormal(Windows.Foundation.Size&availableSize)
-		//{
-		//	var desiredWidth = MeasureTopNavigationViewDesiredWidth(c_infSize);
-		//	if (desiredWidth > availableSize.Width)
-		//	{
-		//		ResetAndRearrangeTopNavItems(availableSize);
-		//	}
-		//}
-
-		//void HandleTopNavigationMeasureOverrideOverflow(Windows.Foundation.Size&availableSize)
-		//{
-		//	var desiredWidth = MeasureTopNavigationViewDesiredWidth(c_infSize);
-		//	if (desiredWidth > availableSize.Width)
-		//	{
-		//		ShrinkTopNavigationSize(desiredWidth, availableSize);
-		//	}
-		//	else if (desiredWidth < availableSize.Width)
-		//	{
-		//		var fullyRecoverWidth = m_topDataProvider.WidthRequiredToRecoveryAllItemsToPrimary();
-		//		if (availableSize.Width >= desiredWidth + fullyRecoverWidth + m_topNavigationRecoveryGracePeriodWidth)
-		//		{
-		//			// It's possible to recover from Overflow to Normal state, so we restart the MeasureOverride from first step
-		//			ResetAndRearrangeTopNavItems(availableSize);
-		//		}
-		//		else
-		//		{
-		//			var movableItems = FindMovableItemsRecoverToPrimaryList(availableSize.Width - desiredWidth, { }/*includeItems*/);
-		//m_topDataProvider.MoveItemsToPrimaryList(movableItems);
-		//				}
-		//			}
-		//		}
-
-		//		void ArrangeTopNavItems(Size &availableSize)
-		//{
-		//	SetOverflowButtonVisibility(Visibility.Collapsed);
-		//	var desiredWidth = MeasureTopNavigationViewDesiredWidth(c_infSize);
-		//	if (!(desiredWidth < availableSize.Width))
-		//	{
-		//		// overflow
-		//		SetOverflowButtonVisibility(Visibility.Visible);
-		//		var desiredWidthForOverflowButton = MeasureTopNavigationViewDesiredWidth(c_infSize);
-
-		//		MUX_ASSERT(desiredWidthForOverflowButton >= desiredWidth);
-		//		m_topDataProvider.OverflowButtonWidth(desiredWidthForOverflowButton - desiredWidth);
-
-		//		ShrinkTopNavigationSize(desiredWidthForOverflowButton, availableSize);
-		//	}
-		//}
-
-		//void SetOverflowButtonVisibility(Visibility &visibility)
-		//{
-		//	if (visibility != TemplateSettings().OverflowButtonVisibility())
-		//	{
-		//		GetTemplateSettings().OverflowButtonVisibility(visibility);
-		//	}
-		//}
-
-		//void SelectOverflowItem(objectitem, IndexPath & ip)
-		//{
-
-		//	var itemBeingMoved = [item, ip, this]()
-
-		//	{
-		//		if (ip.GetSize() > 2)
-		//		{
-		//			return GetItemFromIndex(m_topNavRepeaterOverflowView, m_topDataProvider.ConvertOriginalIndexToIndex(ip.GetAt(1)));
-		//		}
-		//		return item;
-		//	} ();
-
-		//	// Calculate selected overflow item size.
-		//	var selectedOverflowItemIndex = m_topDataProvider.IndexOf(itemBeingMoved);
-		//	MUX_ASSERT(selectedOverflowItemIndex != itemNotFound);
-		//	var selectedOverflowItemWidth = m_topDataProvider.GetWidthForItem(selectedOverflowItemIndex);
-
-		//	bool needInvalidMeasure = !m_topDataProvider.IsValidWidthForItem(selectedOverflowItemIndex);
-
-		//	if (!needInvalidMeasure)
-		//	{
-		//		var actualWidth = GetTopNavigationViewActualWidth();
-		//		var desiredWidth = MeasureTopNavigationViewDesiredWidth(c_infSize);
-		//		MUX_ASSERT(desiredWidth <= actualWidth);
-
-		//		// Calculate selected item size
-		//		var selectedItemIndex = itemNotFound;
-		//		var selectedItemWidth = 0.f;
-		//		if (var selectedItem = SelectedItem())
-		//        {
-		//	selectedItemIndex = m_topDataProvider.IndexOf(selectedItem);
-		//	if (selectedItemIndex != itemNotFound)
-		//	{
-		//		selectedItemWidth = m_topDataProvider.GetWidthForItem(selectedItemIndex);
-		//	}
-		//}
-
-		//var widthAtLeastToBeRemoved = desiredWidth + selectedOverflowItemWidth - actualWidth;
-
-		//// calculate items to be removed from primary because a overflow item is selected. 
-		//// SelectedItem is assumed to be removed from primary first, then added it back if it should not be removed
-		//var itemsToBeRemoved = FindMovableItemsToBeRemovedFromPrimaryList(widthAtLeastToBeRemoved, { } /*excludeItems*/);
-
-		//// calculate the size to be removed
-		//var toBeRemovedItemWidth = m_topDataProvider.CalculateWidthForItems(itemsToBeRemoved);
-
-		//var widthAvailableToRecover = toBeRemovedItemWidth - widthAtLeastToBeRemoved;
-		//var itemsToBeAdded = FindMovableItemsRecoverToPrimaryList(widthAvailableToRecover, { selectedOverflowItemIndex }/*includeItems*/);
-
-		//CollectionHelper.unique_push_back(itemsToBeAdded, selectedOverflowItemIndex);
-
-		//// Keep track of the item being moved in order to know where to animate selection indicator
-		//m_lastSelectedItemPendingAnimationInTopNav = itemBeingMoved;
-		//if (ip && ip.GetSize() > 0)
-		//{
-		//	for (std.CalculatorList<int>.iterator it = itemsToBeRemoved.begin(); it != itemsToBeRemoved.end(); ++it)
-		//	{
-		//		if (*it == ip.GetAt(1))
-		//		{
-		//			if (var indicator = m_activeIndicator)
-		//                    {
-		//		// If the previously selected item is being moved into overflow, hide its indicator
-		//		// as we will no longer need to animate from its location.
-		//		AnimateSelectionChanged(null);
-		//	}
-		//	break;
-		//}
-		//			}
-		//		}
-
-		//		if (m_topDataProvider.HasInvalidWidth(itemsToBeAdded))
-		//{
-		//	needInvalidMeasure = true;
-		//}
-		//else
-		//{
-		//	// Exchange items between Primary and Overflow
-		//	{
-		//		m_topDataProvider.MoveItemsToPrimaryList(itemsToBeAdded);
-		//		m_topDataProvider.MoveItemsOutOfPrimaryList(itemsToBeRemoved);
-		//	}
-
-		//	if (NeedRearrangeOfTopElementsAfterOverflowSelectionChanged(selectedOverflowItemIndex))
-		//	{
-		//		needInvalidMeasure = true;
-		//	}
-
-		//	if (!needInvalidMeasure)
-		//	{
-		//		SetSelectedItemAndExpectItemInvokeWhenSelectionChangedIfNotInvokedFromAPI(item);
-		//		InvalidateMeasure();
-		//	}
-		//}
-		//	}
-
-		//    // TODO: Verify that this is no longer needed and delete
-		//    if (needInvalidMeasure)
-		//{
-		//	// not all items have known width, need to redo the layout
-		//	m_topDataProvider.MoveAllItemsToPrimaryList();
-		//	SetSelectedItemAndExpectItemInvokeWhenSelectionChangedIfNotInvokedFromAPI(item);
-		//	InvalidateTopNavPrimaryLayout();
-		//}
-		//}
-
-		//bool NeedRearrangeOfTopElementsAfterOverflowSelectionChanged(int selectedOriginalIndex)
-		//{
-		//	bool needRearrange = false;
-
-		//	var primaryList = m_topDataProvider.GetPrimaryItems();
-		//	var primaryListSize = primaryList.Size();
-		//	var indexInPrimary = m_topDataProvider.ConvertOriginalIndexToIndex(selectedOriginalIndex);
-		//	// We need to verify that through various overflow selection combinations, the primary
-		//	// items have not been put into a state of non-logical item layout (aka not in proper sequence).
-		//	// To verify this, if the newly selected item has items following it in the primary items:
-		//	// - we verify that they are meant to follow the selected item as specified in the original order
-		//	// - we verify that the preceding item is meant to directly precede the selected item in the original order
-		//	// If these two conditions are not met, we move all items to the primary list and trigger a re-arrangement of the items.
-		//	if (indexInPrimary < (int)(primaryListSize - 1))
-		//	{
-		//		var nextIndexInPrimary = indexInPrimary + 1;
-		//		var nextIndexInOriginal = selectedOriginalIndex + 1;
-		//		var prevIndexInOriginal = selectedOriginalIndex - 1;
-
-		//		// Check whether item preceding the selected is not directly preceding
-		//		// in the original.
-		//		if (indexInPrimary > 0)
-		//		{
-		//			std.CalculatorList<int> prevIndexInVector;
-		//			prevIndexInVector.push_back(nextIndexInPrimary - 1);
-		//			var prevOriginalIndexOfPrevPrimaryItem = m_topDataProvider.ConvertPrimaryIndexToIndex(prevIndexInVector);
-		//			if (prevOriginalIndexOfPrevPrimaryItem.at(0) != prevIndexInOriginal)
-		//			{
-		//				needRearrange = true;
-		//			}
-		//		}
-
-
-		//		// Check whether items following the selected item are out of order
-		//		while (!needRearrange && nextIndexInPrimary < (int)(primaryListSize))
-		//		{
-		//			std.CalculatorList<int> nextIndexInVector;
-		//			nextIndexInVector.push_back(nextIndexInPrimary);
-		//			var originalIndex = m_topDataProvider.ConvertPrimaryIndexToIndex(nextIndexInVector);
-		//			if (nextIndexInOriginal != originalIndex.at(0))
-		//			{
-		//				needRearrange = true;
-		//				break;
-		//			}
-		//			nextIndexInPrimary++;
-		//			nextIndexInOriginal++;
-		//		}
-		//	}
-
-		//	return needRearrange;
-		//}
-
-		//void ShrinkTopNavigationSize(float desiredWidth, Size & availableSize)
-		//{
-		//	UpdateTopNavigationWidthCache();
-
-		//	var selectedItemIndex = GetSelectedItemIndex();
-
-		//	var possibleWidthForPrimaryList = MeasureTopNavMenuItemsHostDesiredWidth(c_infSize) - (desiredWidth - availableSize.Width);
-		//	if (possibleWidthForPrimaryList >= 0)
-		//	{
-		//		// Remove all items which is not visible except first item and selected item.
-		//		var itemToBeRemoved = FindMovableItemsBeyondAvailableWidth(possibleWidthForPrimaryList);
-		//		// should keep at least one item in primary
-		//		KeepAtLeastOneItemInPrimaryList(itemToBeRemoved, true/*shouldKeepFirst*/);
-		//		m_topDataProvider.MoveItemsOutOfPrimaryList(itemToBeRemoved);
-		//	}
-
-		//	// measure again to make sure SelectedItem is realized
-		//	desiredWidth = MeasureTopNavigationViewDesiredWidth(c_infSize);
-
-		//	var widthAtLeastToBeRemoved = desiredWidth - availableSize.Width;
-		//	if (widthAtLeastToBeRemoved > 0)
-		//	{
-		//		var itemToBeRemoved = FindMovableItemsToBeRemovedFromPrimaryList(widthAtLeastToBeRemoved, { selectedItemIndex });
-
-		//// At least one item is kept on primary list
-		//KeepAtLeastOneItemInPrimaryList(itemToBeRemoved, false/*shouldKeepFirst*/);
-
-		//// There should be no item is virtualized in this step
-		//MUX_ASSERT(!m_topDataProvider.HasInvalidWidth(itemToBeRemoved));
-		//m_topDataProvider.MoveItemsOutOfPrimaryList(itemToBeRemoved);
-		//    }
-		//}
-
-		//std.CalculatorList<int> FindMovableItemsRecoverToPrimaryList(float availableWidth, std.CalculatorList<int> & includeItems)
-		//{
-		//	std.CalculatorList<int> toBeMoved;
-
-		//	var size = m_topDataProvider.Size();
-
-		//	// Included Items take high priority, all of them are included in recovery list
-		//	for (var index : includeItems)
-		//    {
-		//	var width = m_topDataProvider.GetWidthForItem(index);
-		//	toBeMoved.push_back(index);
-		//	availableWidth -= width;
-		//}
-
-		//int i = 0;
-		//while (i < size && availableWidth > 0)
-		//{
-		//	if (!m_topDataProvider.IsItemInPrimaryList(i) && !CollectionHelper.contains(includeItems, i))
-		//	{
-		//		var width = m_topDataProvider.GetWidthForItem(i);
-		//		if (availableWidth >= width)
-		//		{
-		//			toBeMoved.push_back(i);
-		//			availableWidth -= width;
-		//		}
-		//		else
-		//		{
-		//			break;
-		//		}
-		//	}
-		//	i++;
-		//}
-		//// Keep at one item is not in primary list. Two possible reason: 
-		////  1, Most likely it's caused by m_topNavigationRecoveryGracePeriod
-		////  2, virtualization and it doesn't have cached width
-		//if (i == size && !toBeMoved.empty())
-		//{
-		//	toBeMoved.pop_back();
-		//}
-		//return toBeMoved;
-		//}
-
-		//std.CalculatorList<int> FindMovableItemsToBeRemovedFromPrimaryList(float widthAtLeastToBeRemoved, std.CalculatorList<int> & excludeItems)
-		//{
-		//	std.CalculatorList<int> toBeMoved;
-
-		//	int i = m_topDataProvider.Size() - 1;
-		//	while (i >= 0 && widthAtLeastToBeRemoved > 0)
-		//	{
-		//		if (m_topDataProvider.IsItemInPrimaryList(i))
-		//		{
-		//			if (!CollectionHelper.contains(excludeItems, i))
-		//			{
-		//				var width = m_topDataProvider.GetWidthForItem(i);
-		//				toBeMoved.push_back(i);
-		//				widthAtLeastToBeRemoved -= width;
-		//			}
-		//		}
-		//		i--;
-		//	}
-
-		//	return toBeMoved;
-		//}
-
-		//std.CalculatorList<int> FindMovableItemsBeyondAvailableWidth(float availableWidth)
-		//{
-		//	std.CalculatorList<int> toBeMoved;
-		//	if (var ir = m_topNavRepeater)
-		//    {
-		//	int selectedItemIndexInPrimary = m_topDataProvider.IndexOf(SelectedItem(), NavigationViewSplitVectorID.PrimaryList);
-		//	int size = m_topDataProvider.GetPrimaryListSize();
-
-		//	float requiredWidth = 0;
-
-		//	for (int i = 0; i < size; i++)
-		//	{
-		//		if (i != selectedItemIndexInPrimary)
-		//		{
-		//			bool shouldMove = true;
-		//			if (requiredWidth <= availableWidth)
-		//			{
-		//				var container = ir.TryGetElement(i);
-		//				if (container)
-		//				{
-		//					if (var containerAsUIElement = container as UIElement())
-		//                        {
-		//		var width = containerAsUIElement.DesiredSize().Width;
-		//		requiredWidth += width;
-		//		shouldMove = requiredWidth > availableWidth;
-		//	}
-		//}
-
-		//					else
-		//{
-		//	// item is virtualized but not realized.                    
-		//}
-		//                }
-
-		//                if (shouldMove)
-		//{
-		//	toBeMoved.push_back(i);
-		//}
-		//            }
-		//        }
-		//    }
-
-		//    return m_topDataProvider.ConvertPrimaryIndexToIndex(toBeMoved);
-		//}
-
-		private void KeepAtLeastOneItemInPrimaryList(IList<int> itemInPrimaryToBeRemoved, bool shouldKeepFirst)
+		private NavigationTransitionInfo CreateNavigationTransitionInfo(NavigationRecommendedTransitionDirection recommendedTransitionDirection)
 		{
-			if (itemInPrimaryToBeRemoved.Count > 0 && (int)(itemInPrimaryToBeRemoved.Count) == m_topDataProvider.GetPrimaryListSize())
+			// In current implementation, if click is from overflow item, just recommend FromRight Slide animation.
+			if (recommendedTransitionDirection == NavigationRecommendedTransitionDirection.FromOverflow)
 			{
-				if (shouldKeepFirst)
+				recommendedTransitionDirection = NavigationRecommendedTransitionDirection.FromRight;
+			}
+
+			if ((recommendedTransitionDirection == NavigationRecommendedTransitionDirection.FromLeft
+				|| recommendedTransitionDirection == NavigationRecommendedTransitionDirection.FromRight)
+				&& SharedHelpers.IsRS5OrHigher())
+			{
+				var sliderNav = new SlideNavigationTransitionInfo();
+				SlideNavigationTransitionEffect effect =
+				   recommendedTransitionDirection == NavigationRecommendedTransitionDirection.FromRight ?
+				   SlideNavigationTransitionEffect.FromRight :
+				   SlideNavigationTransitionEffect.FromLeft;
+				// PR 1895355: Bug 17724768: Remove Side-to-Side navigation transition velocity key
+				// https://microsoft.visualstudio.com/_git/os/commit/7d58531e69bc8ad1761cff938d8db25f6fb6a841
+				// We want to use Effect, but it's not in all os of rs5. as a workaround, we only apply effect to the os which is already remove velocity key.
+				if (sliderNav is SlideNavigationTransitionInfo sliderNav2)
 				{
-					itemInPrimaryToBeRemoved.RemoveAt(0);
+					sliderNav.Effect = effect;
 				}
-				else
-				{
-					itemInPrimaryToBeRemoved.RemoveAt(itemInPrimaryToBeRemoved.Count - 1);
-				}
-			}
-		}
-
-		private int GetSelectedItemIndex()
-		{
-			return m_topDataProvider.IndexOf(SelectedItem);
-		}
-
-		private double GetPaneToggleButtonWidth()
-		{
-			return (double)SharedHelpers.FindInApplicationResources("PaneToggleButtonWidth", c_paneToggleButtonWidth);
-		}
-
-		private double GetPaneToggleButtonHeight()
-		{
-			return (double)SharedHelpers.FindInApplicationResources("PaneToggleButtonHeight", c_paneToggleButtonHeight);
-		}
-
-		//void UpdateTopNavigationWidthCache()
-		//{
-		//	int size = m_topDataProvider.GetPrimaryListSize();
-		//	if (var ir = m_topNavRepeater)
-		//    {
-		//	for (int i = 0; i < size; i++)
-		//	{
-		//		if (var container = ir.TryGetElement(i))
-		//            {
-		//		if (var containerAsUIElement = container as UIElement())
-		//                {
-		//			var width = containerAsUIElement.DesiredSize().Width;
-		//			m_topDataProvider.UpdateWidthForPrimaryItem(i, width);
-		//		}
-		//	}
-
-		//			else
-		//	{
-		//		break;
-		//	}
-		//}
-		//    }
-		//}
-
-		private bool IsTopNavigationView()
-		{
-			return PaneDisplayMode == NavigationViewPaneDisplayMode.Top;
-		}
-
-		private bool IsTopPrimaryListVisible()
-		{
-			return m_topNavRepeater != null && (TemplateSettings.TopPaneVisibility == Visibility.Visible);
-		}
-
-		private void CoerceToGreaterThanZero(ref double value)
-		{
-			// Property coercion for OpenPaneLength, CompactPaneLength, CompactModeThresholdWidth, ExpandedModeThresholdWidth
-			value = Math.Max(value, 0.0);
-		}
-
-		//void OnPropertyChanged(DependencyPropertyChangedEventArgs args)
-		//{
-		//	IDependencyProperty property = args.Property();
-
-		//	if (property == IsPaneOpenProperty)
-		//	{
-		//		OnIsPaneOpenChanged();
-		//		UpdateVisualStateForDisplayModeGroup(DisplayMode());
-		//	}
-		//	else if (property == CompactModeThresholdWidthProperty ||
-		//		property == ExpandedModeThresholdWidthProperty)
-		//	{
-		//		UpdateAdaptiveLayout(ActualWidth());
-		//	}
-		//	else if (property == AlwaysShowHeaderProperty || property == HeaderProperty)
-		//	{
-		//		UpdateHeaderVisibility();
-		//	}
-		//	else if (property == SelectedItemProperty)
-		//	{
-		//		OnSelectedItemPropertyChanged(args);
-		//	}
-		//	else if (property == PaneTitleProperty)
-		//	{
-		//		UpdatePaneTitleFrameworkElementParents();
-		//		UpdateBackAndCloseButtonsVisibility();
-		//		UpdatePaneToggleSize();
-		//	}
-		//	else if (property == IsBackButtonVisibleProperty)
-		//	{
-		//		UpdateBackAndCloseButtonsVisibility();
-		//		UpdateAdaptiveLayout(ActualWidth());
-		//		if (IsTopNavigationView())
-		//		{
-		//			InvalidateTopNavPrimaryLayout();
-		//		}
-
-		//		if (g_IsTelemetryProviderEnabled && IsBackButtonVisible() == NavigationViewBackButtonVisible.Collapsed)
-		//		{
-		//			//  Explicitly disabling BackUI on NavigationView
-		//			[[gsl.suppress(con.4)]] TraceLoggingWrite(
-		//				g_hTelemetryProvider,
-		//				"NavigationView_DisableBackUI",
-		//				TraceLoggingDescription("Developer explicitly disables the BackUI on NavigationView"));
-		//		}
-		//		// Enabling back button shifts grid instead of resizing, so let's update the layout.
-		//		if (var backButton = m_backButton)
-		//        {
-		//	backButton.UpdateLayout();
-		//}
-		//UpdatePaneLayout();
-		//    }
-
-		//	else if (property == MenuItemsSourceProperty)
-		//{
-		//	UpdateRepeaterItemsSource(true /*forceSelectionModelUpdate*/);
-		//}
-		//else if (property == MenuItemsProperty)
-		//{
-		//	UpdateRepeaterItemsSource(true /*forceSelectionModelUpdate*/);
-		//}
-		//else if (property == FooterMenuItemsSourceProperty)
-		//{
-		//	UpdateFooterRepeaterItemsSource(true /*sourceCollectionReset*/, true /*sourceCollectionChanged*/);
-		//}
-		//else if (property == FooterMenuItemsProperty)
-		//{
-		//	UpdateFooterRepeaterItemsSource(true /*sourceCollectionReset*/, true /*sourceCollectionChanged*/);
-		//}
-		//else if (property == PaneDisplayModeProperty)
-		//{
-		//	// m_wasForceClosed is set to true because ToggleButton is clicked and Pane is closed.
-		//	// When PaneDisplayMode is changed, reset the force flag to make the Pane can be opened automatically again.
-		//	m_wasForceClosed = false;
-
-		//	CollapseTopLevelMenuItems(auto_unbox(args.OldValue()));
-		//	UpdatePaneToggleButtonVisibility();
-		//	UpdatePaneDisplayMode(auto_unbox(args.OldValue()), auto_unbox(args.NewValue()));
-		//	UpdatePaneTitleFrameworkElementParents();
-		//	UpdatePaneVisibility();
-		//	UpdateVisualState();
-		//	UpdatePaneButtonsWidths();
-		//}
-		//else if (property == IsPaneVisibleProperty)
-		//{
-		//	UpdatePaneVisibility();
-		//	UpdateVisualStateForDisplayModeGroup(DisplayMode());
-
-		//	// When NavView is in expaneded mode with fixed window size, setting IsPaneVisible to false doesn't closes the pane
-		//	// We manually close/open it for this case
-		//	if (!IsPaneVisible() && IsPaneOpen())
-		//	{
-		//		ClosePane();
-		//	}
-
-		//	if (IsPaneVisible() && DisplayMode() == NavigationViewDisplayMode.Expanded && !IsPaneOpen())
-		//	{
-		//		OpenPane();
-		//	}
-		//}
-		//else if (property == OverflowLabelModeProperty)
-		//{
-		//	if (m_appliedTemplate)
-		//	{
-		//		UpdateVisualStateForOverflowButton();
-		//		InvalidateTopNavPrimaryLayout();
-		//	}
-		//}
-		//else if (property == AutoSuggestBoxProperty)
-		//{
-		//	InvalidateTopNavPrimaryLayout();
-		//	if (args.OldValue())
-		//	{
-		//		m_autoSuggestBoxSuggestionChosenRevoker.revoke();
-		//	}
-		//	if (var newAutoSuggestBox = args.NewValue() as AutoSuggestBox())
-		//        {
-		//		m_autoSuggestBoxSuggestionChosenRevoker = newAutoSuggestBox.SuggestionChosen(auto_revoke, { this, &OnAutoSuggestBoxSuggestionChosen });
-		//	}
-		//}
-		//else if (property == SelectionFollowsFocusProperty)
-		//{
-		//	UpdateSingleSelectionFollowsFocusTemplateSetting();
-		//}
-		//else if (property == IsPaneToggleButtonVisibleProperty)
-		//{
-		//	UpdatePaneTitleFrameworkElementParents();
-		//	UpdateBackAndCloseButtonsVisibility();
-		//	UpdatePaneToggleButtonVisibility();
-		//	UpdateVisualState();
-		//}
-		//else if (property == IsSettingsVisibleProperty)
-		//{
-		//	UpdateFooterRepeaterItemsSource(false /*sourceCollectionReset*/, true /*sourceCollectionChanged*/);
-		//}
-		//else if (property == CompactPaneLengthProperty)
-		//{
-		//	// Need to update receiver margins when CompactPaneLength changes
-		//	UpdatePaneShadow();
-
-		//	// Update pane-button-grid width when pane is closed and we are not in minimal
-		//	UpdatePaneButtonsWidths();
-		//}
-		//else if (property == IsTitleBarAutoPaddingEnabledProperty)
-		//{
-		//	UpdateTitleBarPadding();
-		//}
-		//else if (property == MenuItemTemplateProperty ||
-		//	property == MenuItemTemplateSelectorProperty)
-		//{
-		//	SyncItemTemplates();
-		//}
-		//}
-
-		//void UpdateNavigationViewItemsFactory()
-		//{
-		//	object newItemTemplate = MenuItemTemplate();
-		//	if (!newItemTemplate)
-		//	{
-		//		newItemTemplate = MenuItemTemplateSelector();
-		//	}
-		//	m_navigationViewItemsFactory.UserElementFactory(newItemTemplate);
-		//}
-
-		private void SyncItemTemplates()
-		{
-			UpdateNavigationViewItemsFactory();
-		}
-
-		private void OnRepeaterLoaded(object sender, RoutedEventArgs args)
-		{
-			var item = SelectedItem;
-			if (item != null)
-			{
-				if (!IsSelectionSuppressed(item))
-				{
-					var navViewItem = NavigationViewItemOrSettingsContentFromData(item);
-					if (navViewItem != null)
-					{
-						navViewItem.IsSelected = true;
-					}
-				}
-				AnimateSelectionChanged(item);
-			}
-		}
-
-		// If app is .net app, the lifetime of NavigationView maybe depends on garbage collection.
-		// Unlike other revoker, TitleBar is in global space and we need to stop receiving changed event when it's unloaded.
-		// So we do hook it in Loaded and Unhook it in Unloaded
-		private void OnUnloaded(object sender, RoutedEventArgs args)
-		{
-			var coreTitleBar = m_coreTitleBar;
-			if (coreTitleBar != null)
-			{
-				coreTitleBar.LayoutMetricsChanged += OnTitleBarMetricsChanged;
-				coreTitleBar.IsVisibleChanged += OnTitleBarIsVisibleChanged;
-			}
-		}
-
-		private void OnLoaded(object sender, RoutedEventArgs args)
-		{
-			if (m_updateVisualStateForDisplayModeFromOnLoaded)
-			{
-				m_updateVisualStateForDisplayModeFromOnLoaded = false;
-				UpdateVisualStateForDisplayModeGroup(DisplayMode);
-			}
-
-			var coreTitleBar = m_coreTitleBar;
-			if (coreTitleBar != null)
-		    {
-				coreTitleBar.LayoutMetricsChanged += OnTitleBarMetricsChanged;
-				coreTitleBar.IsVisibleChanged += OnTitleBarIsVisibleChanged;
-			}
-			// Update pane buttons now since we the CompactPaneLength is actually known now.
-			UpdatePaneButtonsWidths();
-		}
-
-		//void OnIsPaneOpenChanged()
-		//{
-		//	var isPaneOpen = IsPaneOpen();
-		//	if (isPaneOpen && m_wasForceClosed)
-		//	{
-		//		m_wasForceClosed = false; // remove the pane open flag since Pane is opened.
-		//	}
-		//	else if (!m_isOpenPaneForInteraction && !isPaneOpen)
-		//	{
-		//		if (var splitView = m_rootSplitView)
-		//        {
-		//	// splitview.IsPaneOpen and nav.IsPaneOpen is two way binding. If nav.IsPaneOpen=false and splitView.IsPaneOpen=true,
-		//	// then the pane has been closed by API and we treat it as a forced close.
-		//	// If, however, splitView.IsPaneOpen=false, then nav.IsPaneOpen is just following the SplitView here and the pane
-		//	// was closed, for example, due to app window resizing. We don't set the force flag in this situation.
-		//	m_wasForceClosed = splitView.IsPaneOpen();
-		//}
-
-		//		else
-		//{
-		//	// If there is no SplitView (for example it hasn't been loaded yet) then nav.IsPaneOpen was set directly
-		//	// so we treat it as a closed force.
-		//	m_wasForceClosed = true;
-		//}
-		//    }
-
-		//    SetPaneToggleButtonAutomationName();
-		//UpdatePaneTabFocusNavigation();
-		//UpdateSettingsItemToolTip();
-		//UpdatePaneTitleFrameworkElementParents();
-
-		//if (SharedHelpers.IsThemeShadowAvailable())
-		//{
-		//	if (var splitView = m_rootSplitView)
-		//        {
-		//		var displayMode = splitView.DisplayMode();
-		//		var isOverlay = displayMode == SplitViewDisplayMode.Overlay || displayMode == SplitViewDisplayMode.CompactOverlay;
-		//		if (var paneRoot = splitView.Pane())
-		//            {
-		//			var currentTranslation = paneRoot.Translation();
-		//			var translation = float3{ currentTranslation.x, currentTranslation.y, IsPaneOpen() && isOverlay ? c_paneElevationTranslationZ : 0.0f };
-		//			paneRoot.Translation(translation);
-		//		}
-		//	}
-		//}
-		//UpdatePaneButtonsWidths();
-		//}
-
-		private void UpdatePaneToggleButtonVisibility()
-		{
-			var visible = IsPaneToggleButtonVisible && !IsTopNavigationView();
-			GetTemplateSettings().PaneToggleButtonVisibility(Util.VisibilityFromBool(visible));
-		}
-
-		private void UpdatePaneDisplayMode()
-		{
-			if (!m_appliedTemplate)
-			{
-				return;
-			}
-			if (!IsTopNavigationView())
-			{
-				UpdateAdaptiveLayout(ActualWidth, true /*forceSetDisplayMode*/);
-
-				SwapPaneHeaderContent(m_leftNavPaneHeaderContentBorder, m_paneHeaderOnTopPane, "PaneHeader");
-				SwapPaneHeaderContent(m_leftNavPaneCustomContentBorder, m_paneCustomContentOnTopPane, "PaneCustomContent");
-				SwapPaneHeaderContent(m_leftNavFooterContentBorder, m_paneFooterOnTopPane, "PaneFooter");
-
-				CreateAndHookEventsToSettings();
-
-				//if (UIElement8 thisAsUIElement8 = this)
-				{
-					var paneToggleButton = m_paneToggleButton;
-					if (paneToggleButton != null)
-					{
-						KeyTipTarget = paneToggleButton;
-					}
-				}
-
+				return sliderNav;
 			}
 
 			else
 			{
-				ClosePane();
-				SetDisplayMode(NavigationViewDisplayMode.Minimal, true);
+				var defaultInfo = new EntranceNavigationTransitionInfo();
+				return defaultInfo;
+			}
+		}
 
-				SwapPaneHeaderContent(m_paneHeaderOnTopPane, m_leftNavPaneHeaderContentBorder, "PaneHeader");
-				SwapPaneHeaderContent(m_paneCustomContentOnTopPane, m_leftNavPaneCustomContentBorder, "PaneCustomContent");
-				SwapPaneHeaderContent(m_paneFooterOnTopPane, m_leftNavFooterContentBorder, "PaneFooter");
+		private NavigationRecommendedTransitionDirection GetRecommendedTransitionDirection(DependencyObject prev, DependencyObject next)
+		{
+			var recommendedTransitionDirection = NavigationRecommendedTransitionDirection.Default;
+			var ir = m_topNavRepeater;
 
-				CreateAndHookEventsToSettings();
+			if (prev != null && next != null && ir != null)
+			{
+				var prevIndexPath = GetIndexPathForContainer(prev as NavigationViewItemBase);
+				var nextIndexPath = GetIndexPathForContainer(next as NavigationViewItemBase);
 
-				//if (UIElement8 thisAsUIElement8 = this)
+				var compare = prevIndexPath.CompareTo(nextIndexPath);
+
+				switch (compare)
 				{
-					var topNavOverflowButton = m_topNavOverflowButton;
-					if (topNavOverflowButton != null)
+					case -1:
+						recommendedTransitionDirection = NavigationRecommendedTransitionDirection.FromRight;
+						break;
+					case 1:
+						recommendedTransitionDirection = NavigationRecommendedTransitionDirection.FromLeft;
+						break;
+					default:
+						recommendedTransitionDirection = NavigationRecommendedTransitionDirection.Default;
+						break;
+				}
+			}
+			return recommendedTransitionDirection;
+		}
+
+		private NavigationViewTemplateSettings GetTemplateSettings()
+		{
+			return TemplateSettings;
+		}
+
+		private bool IsNavigationViewListSingleSelectionFollowsFocus()
+		{
+			return SelectionFollowsFocus == NavigationViewSelectionFollowsFocus.Enabled;
+		}
+
+		private void UpdateSingleSelectionFollowsFocusTemplateSetting()
+		{
+			GetTemplateSettings().SingleSelectionFollowsFocus(IsNavigationViewListSingleSelectionFollowsFocus());
+		}
+
+		private void OnMenuItemsSourceCollectionChanged(object, object)
+		{
+			if (!IsTopNavigationView())
+			{
+				var repeater = m_leftNavRepeater;
+				if (repeater != null)
+				{
+					repeater.UpdateLayout();
+				}
+				UpdatePaneLayout();
+			}
+		}
+
+		private void OnSelectedItemPropertyChanged(DependencyPropertyChangedEventArgs args)
+		{
+
+			var newItem = args.NewValue;
+			var oldItem = args.OldValue;
+
+			ChangeSelection(oldItem, newItem);
+
+			if (m_appliedTemplate && IsTopNavigationView())
+			{
+				if (!m_layoutUpdatedToken ||
+					(newItem != null && m_topDataProvider.IndexOf(newItem) != itemNotFound && m_topDataProvider.IndexOf(newItem, NavigationViewSplitVectorID.PrimaryList) == itemNotFound)) // selection is in overflow
+				{
+					InvalidateTopNavPrimaryLayout();
+				}
+			}
+		}
+
+		private void SetSelectedItemAndExpectItemInvokeWhenSelectionChangedIfNotInvokedFromAPI(object item)
+		{
+			SelectedItem = item;
+		}
+
+		private void ChangeSelectStatusForItem(object item, bool selected)
+		{
+			var container = NavigationViewItemOrSettingsContentFromData(item);
+			if (container != null)
+			{
+				// If we unselect an item, ListView doesn't tolerate setting the SelectedItem to null. 
+				// Instead we remove IsSelected from the item itself, and it make ListView to unselect it.
+				// If we select an item, we follow the unselect to simplify the code.
+				container.IsSelected = selected;
+			}
+			else if (selected)
+			{
+				// If we are selecting an item and have not found a realized container for it,
+				// we may need to manually resolve a container for this in order to update the
+				// SelectionModel's selected IndexPath.
+				var ip = GetIndexPathOfItem(item);
+				if (ip && ip.GetSize() > 0)
+				{
+					// The SelectedItem property has already been updated. So we want to block any logic from executing
+					// in the SelectionModel selection changed callback.
+					try
 					{
-						KeyTipTarget = topNavOverflowButton;
+						m_shouldIgnoreNextSelectionChange = true;
+						UpdateSelectionModelSelection(ip);
+					}
+					finally
+					{
+						m_shouldIgnoreNextSelectionChange = false;
 					}
 				}
 			}
 
-			UpdateContentBindingsForPaneDisplayMode();
-			UpdateRepeaterItemsSource(false /*forceSelectionModelUpdate*/);
-			UpdateFooterRepeaterItemsSource(false /*sourceCollectionReset*/, false /*sourceCollectionChanged*/);
-			var selectedItem = SelectedItem;
-			if (selectedItem != null)
+			private bool IsSettingsItem(object item)
 			{
-				m_OrientationChangedPendingAnimation = true;
+				bool isSettingsItem = false;
+				if (item != null)
+				{
+					var settingItem = m_settingsItem;
+					if (settingItem != null)
+					{
+						isSettingsItem = (settingItem == item) || (settingItem.Content == item);
+					}
+				}
+				return isSettingsItem;
+			}
+
+			void UnselectPrevItem(objectprevItem, objectnextItem)
+			{
+				if (prevItem && prevItem != nextItem)
+				{
+					var scopeGuard = gsl.finally([this, setIgnoreNextSelectionChangeToFalse = !m_shouldIgnoreNextSelectionChange]()
+
+
+
+				{
+						if (setIgnoreNextSelectionChangeToFalse)
+						{
+							m_shouldIgnoreNextSelectionChange = false;
+						}
+					});
+			m_shouldIgnoreNextSelectionChange = true;
+			ChangeSelectStatusForItem(prevItem, false /*selected*/);
+		}
+	}
+
+	private void UndoSelectionAndRevertSelectionTo(object prevSelectedItem, object nextItem)
+	{
+		object selectedItem = null;
+		if (prevSelectedItem != null)
+		{
+			if (IsSelectionSuppressed(prevSelectedItem))
+			{
+				AnimateSelectionChanged(null);
+			}
+			else
+			{
+				ChangeSelectStatusForItem(prevSelectedItem, true /*selected*/);
+				AnimateSelectionChangedToItem(prevSelectedItem);
+				selectedItem = prevSelectedItem;
+			}
+		}
+		else
+		{
+			// Bug 18033309, A SelectsOnInvoked=false item is clicked, if we don't unselect it from listview, the second click will not raise ItemClicked
+			// because listview doesn't raise SelectionChange.
+			ChangeSelectStatusForItem(nextItem, false /*selected*/);
+		}
+		SelectedItem = selectedItem;
+	}
+
+	private void CloseTopNavigationViewFlyout()
+	{
+		var button = m_topNavOverflowButton;
+		if (button != null)
+		{
+			var flyout = button.Flyout;
+			if (flyout != null)
+			{
+				flyout.Hide();
+			}
+		}
+	}
+
+	private void UpdateVisualState(bool useTransitions)
+	{
+		if (m_appliedTemplate)
+		{
+			var box = AutoSuggestBox;
+			VisualStateManager.GoToState(this, box != null ? "AutoSuggestBoxVisible" : "AutoSuggestBoxCollapsed", false /*useTransitions*/);
+
+			bool isVisible = IsSettingsVisible;
+			VisualStateManager.GoToState(this, isVisible ? "SettingsVisible" : "SettingsCollapsed", false /*useTransitions*/);
+
+			if (IsTopNavigationView())
+			{
+				UpdateVisualStateForOverflowButton();
+			}
+			else
+			{
+				UpdateLeftNavigationOnlyVisualState(useTransitions);
+			}
+		}
+	}
+
+	private void UpdateVisualStateForOverflowButton()
+	{
+		var state = (OverflowLabelMode == NavigationViewOverflowLabelMode.MoreLabel) ?
+			"OverflowButtonWithLabel" :
+			"OverflowButtonNoLabel";
+		VisualStateManager.GoToState(this, state, false /* useTransitions*/);
+	}
+
+	private void UpdateLeftNavigationOnlyVisualState(bool useTransitions)
+	{
+		bool isToggleButtonVisible = IsPaneToggleButtonVisible;
+		VisualStateManager.GoToState(this, isToggleButtonVisible ? "TogglePaneButtonVisible" : "TogglePaneButtonCollapsed", false /*useTransitions*/);
+	}
+
+	private void InvalidateTopNavPrimaryLayout()
+	{
+		if (m_appliedTemplate && IsTopNavigationView())
+		{
+			InvalidateMeasure();
+		}
+	}
+
+	private double MeasureTopNavigationViewDesiredWidth(Size availableSize)
+	{
+		return LayoutUtils.MeasureAndGetDesiredWidthFor(m_topNavGrid, availableSize);
+	}
+
+	private double MeasureTopNavMenuItemsHostDesiredWidth(Size availableSize)
+	{
+		return LayoutUtils.MeasureAndGetDesiredWidthFor(m_topNavRepeater, availableSize);
+	}
+
+	private double GetTopNavigationViewActualWidth()
+	{
+		double width = LayoutUtils.GetActualWidthFor(m_topNavGrid);
+		MUX_ASSERT(width < double.MaxValue);
+		return (double)(width);
+	}
+
+	private bool HasTopNavigationViewItemNotInPrimaryList()
+	{
+		return m_topDataProvider.GetPrimaryListSize() != m_topDataProvider.Size();
+	}
+
+	private void ResetAndRearrangeTopNavItems(Size availableSize)
+	{
+		if (HasTopNavigationViewItemNotInPrimaryList())
+		{
+			m_topDataProvider.MoveAllItemsToPrimaryList();
+		}
+		ArrangeTopNavItems(availableSize);
+	}
+
+	private void HandleTopNavigationMeasureOverride(Size availableSize)
+	{
+		// Determine if TopNav is in Overflow
+		if (HasTopNavigationViewItemNotInPrimaryList())
+		{
+			HandleTopNavigationMeasureOverrideOverflow(availableSize);
+		}
+		else
+		{
+			HandleTopNavigationMeasureOverrideNormal(availableSize);
+		}
+
+		if (m_topNavigationMode == TopNavigationViewLayoutState.Uninitialized)
+		{
+			m_topNavigationMode = TopNavigationViewLayoutState.Initialized;
+		}
+	}
+
+	private void HandleTopNavigationMeasureOverrideNormal(Windows.Foundation.Size&availableSize)
+	{
+		var desiredWidth = MeasureTopNavigationViewDesiredWidth(c_infSize);
+		if (desiredWidth > availableSize.Width)
+		{
+			ResetAndRearrangeTopNavItems(availableSize);
+		}
+	}
+
+	private void HandleTopNavigationMeasureOverrideOverflow(Windows.Foundation.Size&availableSize)
+	{
+		var desiredWidth = MeasureTopNavigationViewDesiredWidth(c_infSize);
+		if (desiredWidth > availableSize.Width)
+		{
+			ShrinkTopNavigationSize(desiredWidth, availableSize);
+		}
+		else if (desiredWidth < availableSize.Width)
+		{
+			var fullyRecoverWidth = m_topDataProvider.WidthRequiredToRecoveryAllItemsToPrimary();
+			if (availableSize.Width >= desiredWidth + fullyRecoverWidth + m_topNavigationRecoveryGracePeriodWidth)
+			{
+				// It's possible to recover from Overflow to Normal state, so we restart the MeasureOverride from first step
+				ResetAndRearrangeTopNavItems(availableSize);
+			}
+			else
+			{
+				var movableItems = FindMovableItemsRecoverToPrimaryList(availableSize.Width - desiredWidth, { }/*includeItems*/);
+				m_topDataProvider.MoveItemsToPrimaryList(movableItems);
+			}
+		}
+	}
+
+	private void ArrangeTopNavItems(Size availableSize)
+	{
+		SetOverflowButtonVisibility(Visibility.Collapsed);
+		var desiredWidth = MeasureTopNavigationViewDesiredWidth(c_infSize);
+		if (!(desiredWidth < availableSize.Width))
+		{
+			// overflow
+			SetOverflowButtonVisibility(Visibility.Visible);
+			var desiredWidthForOverflowButton = MeasureTopNavigationViewDesiredWidth(c_infSize);
+
+			MUX_ASSERT(desiredWidthForOverflowButton >= desiredWidth);
+			m_topDataProvider.OverflowButtonWidth(desiredWidthForOverflowButton - desiredWidth);
+
+			ShrinkTopNavigationSize(desiredWidthForOverflowButton, availableSize);
+		}
+	}
+
+	private void SetOverflowButtonVisibility(Visibility visibility)
+	{
+		if (visibility != TemplateSettings.OverflowButtonVisibility)
+		{
+			GetTemplateSettings().OverflowButtonVisibility(visibility);
+		}
+	}
+
+	//void SelectOverflowItem(objectitem, IndexPath & ip)
+	//{
+
+	//	var itemBeingMoved = [item, ip, this]()
+
+	//	{
+	//		if (ip.GetSize() > 2)
+	//		{
+	//			return GetItemFromIndex(m_topNavRepeaterOverflowView, m_topDataProvider.ConvertOriginalIndexToIndex(ip.GetAt(1)));
+	//		}
+	//		return item;
+	//	} ();
+
+	//	// Calculate selected overflow item size.
+	//	var selectedOverflowItemIndex = m_topDataProvider.IndexOf(itemBeingMoved);
+	//	MUX_ASSERT(selectedOverflowItemIndex != itemNotFound);
+	//	var selectedOverflowItemWidth = m_topDataProvider.GetWidthForItem(selectedOverflowItemIndex);
+
+	//	bool needInvalidMeasure = !m_topDataProvider.IsValidWidthForItem(selectedOverflowItemIndex);
+
+	//	if (!needInvalidMeasure)
+	//	{
+	//		var actualWidth = GetTopNavigationViewActualWidth();
+	//		var desiredWidth = MeasureTopNavigationViewDesiredWidth(c_infSize);
+	//		MUX_ASSERT(desiredWidth <= actualWidth);
+
+	//		// Calculate selected item size
+	//		var selectedItemIndex = itemNotFound;
+	//		var selectedItemWidth = 0.f;
+	//		if (var selectedItem = SelectedItem())
+	//        {
+	//	selectedItemIndex = m_topDataProvider.IndexOf(selectedItem);
+	//	if (selectedItemIndex != itemNotFound)
+	//	{
+	//		selectedItemWidth = m_topDataProvider.GetWidthForItem(selectedItemIndex);
+	//	}
+	//}
+
+	//var widthAtLeastToBeRemoved = desiredWidth + selectedOverflowItemWidth - actualWidth;
+
+	//// calculate items to be removed from primary because a overflow item is selected. 
+	//// SelectedItem is assumed to be removed from primary first, then added it back if it should not be removed
+	//var itemsToBeRemoved = FindMovableItemsToBeRemovedFromPrimaryList(widthAtLeastToBeRemoved, { } /*excludeItems*/);
+
+	//// calculate the size to be removed
+	//var toBeRemovedItemWidth = m_topDataProvider.CalculateWidthForItems(itemsToBeRemoved);
+
+	//var widthAvailableToRecover = toBeRemovedItemWidth - widthAtLeastToBeRemoved;
+	//var itemsToBeAdded = FindMovableItemsRecoverToPrimaryList(widthAvailableToRecover, { selectedOverflowItemIndex }/*includeItems*/);
+
+	//CollectionHelper.unique_push_back(itemsToBeAdded, selectedOverflowItemIndex);
+
+	//// Keep track of the item being moved in order to know where to animate selection indicator
+	//m_lastSelectedItemPendingAnimationInTopNav = itemBeingMoved;
+	//if (ip && ip.GetSize() > 0)
+	//{
+	//	for (std.CalculatorList<int>.iterator it = itemsToBeRemoved.begin(); it != itemsToBeRemoved.end(); ++it)
+	//	{
+	//		if (*it == ip.GetAt(1))
+	//		{
+	//			if (var indicator = m_activeIndicator)
+	//                    {
+	//		// If the previously selected item is being moved into overflow, hide its indicator
+	//		// as we will no longer need to animate from its location.
+	//		AnimateSelectionChanged(null);
+	//	}
+	//	break;
+	//}
+	//			}
+	//		}
+
+	//		if (m_topDataProvider.HasInvalidWidth(itemsToBeAdded))
+	//{
+	//	needInvalidMeasure = true;
+	//}
+	//else
+	//{
+	//	// Exchange items between Primary and Overflow
+	//	{
+	//		m_topDataProvider.MoveItemsToPrimaryList(itemsToBeAdded);
+	//		m_topDataProvider.MoveItemsOutOfPrimaryList(itemsToBeRemoved);
+	//	}
+
+	//	if (NeedRearrangeOfTopElementsAfterOverflowSelectionChanged(selectedOverflowItemIndex))
+	//	{
+	//		needInvalidMeasure = true;
+	//	}
+
+	//	if (!needInvalidMeasure)
+	//	{
+	//		SetSelectedItemAndExpectItemInvokeWhenSelectionChangedIfNotInvokedFromAPI(item);
+	//		InvalidateMeasure();
+	//	}
+	//}
+	//	}
+
+	//    // TODO: Verify that this is no longer needed and delete
+	//    if (needInvalidMeasure)
+	//{
+	//	// not all items have known width, need to redo the layout
+	//	m_topDataProvider.MoveAllItemsToPrimaryList();
+	//	SetSelectedItemAndExpectItemInvokeWhenSelectionChangedIfNotInvokedFromAPI(item);
+	//	InvalidateTopNavPrimaryLayout();
+	//}
+	//}
+
+	//bool NeedRearrangeOfTopElementsAfterOverflowSelectionChanged(int selectedOriginalIndex)
+	//{
+	//	bool needRearrange = false;
+
+	//	var primaryList = m_topDataProvider.GetPrimaryItems();
+	//	var primaryListSize = primaryList.Size();
+	//	var indexInPrimary = m_topDataProvider.ConvertOriginalIndexToIndex(selectedOriginalIndex);
+	//	// We need to verify that through various overflow selection combinations, the primary
+	//	// items have not been put into a state of non-logical item layout (aka not in proper sequence).
+	//	// To verify this, if the newly selected item has items following it in the primary items:
+	//	// - we verify that they are meant to follow the selected item as specified in the original order
+	//	// - we verify that the preceding item is meant to directly precede the selected item in the original order
+	//	// If these two conditions are not met, we move all items to the primary list and trigger a re-arrangement of the items.
+	//	if (indexInPrimary < (int)(primaryListSize - 1))
+	//	{
+	//		var nextIndexInPrimary = indexInPrimary + 1;
+	//		var nextIndexInOriginal = selectedOriginalIndex + 1;
+	//		var prevIndexInOriginal = selectedOriginalIndex - 1;
+
+	//		// Check whether item preceding the selected is not directly preceding
+	//		// in the original.
+	//		if (indexInPrimary > 0)
+	//		{
+	//			std.CalculatorList<int> prevIndexInVector;
+	//			prevIndexInVector.push_back(nextIndexInPrimary - 1);
+	//			var prevOriginalIndexOfPrevPrimaryItem = m_topDataProvider.ConvertPrimaryIndexToIndex(prevIndexInVector);
+	//			if (prevOriginalIndexOfPrevPrimaryItem.at(0) != prevIndexInOriginal)
+	//			{
+	//				needRearrange = true;
+	//			}
+	//		}
+
+
+	//		// Check whether items following the selected item are out of order
+	//		while (!needRearrange && nextIndexInPrimary < (int)(primaryListSize))
+	//		{
+	//			std.CalculatorList<int> nextIndexInVector;
+	//			nextIndexInVector.push_back(nextIndexInPrimary);
+	//			var originalIndex = m_topDataProvider.ConvertPrimaryIndexToIndex(nextIndexInVector);
+	//			if (nextIndexInOriginal != originalIndex.at(0))
+	//			{
+	//				needRearrange = true;
+	//				break;
+	//			}
+	//			nextIndexInPrimary++;
+	//			nextIndexInOriginal++;
+	//		}
+	//	}
+
+	//	return needRearrange;
+	//}
+
+	//void ShrinkTopNavigationSize(float desiredWidth, Size & availableSize)
+	//{
+	//	UpdateTopNavigationWidthCache();
+
+	//	var selectedItemIndex = GetSelectedItemIndex();
+
+	//	var possibleWidthForPrimaryList = MeasureTopNavMenuItemsHostDesiredWidth(c_infSize) - (desiredWidth - availableSize.Width);
+	//	if (possibleWidthForPrimaryList >= 0)
+	//	{
+	//		// Remove all items which is not visible except first item and selected item.
+	//		var itemToBeRemoved = FindMovableItemsBeyondAvailableWidth(possibleWidthForPrimaryList);
+	//		// should keep at least one item in primary
+	//		KeepAtLeastOneItemInPrimaryList(itemToBeRemoved, true/*shouldKeepFirst*/);
+	//		m_topDataProvider.MoveItemsOutOfPrimaryList(itemToBeRemoved);
+	//	}
+
+	//	// measure again to make sure SelectedItem is realized
+	//	desiredWidth = MeasureTopNavigationViewDesiredWidth(c_infSize);
+
+	//	var widthAtLeastToBeRemoved = desiredWidth - availableSize.Width;
+	//	if (widthAtLeastToBeRemoved > 0)
+	//	{
+	//		var itemToBeRemoved = FindMovableItemsToBeRemovedFromPrimaryList(widthAtLeastToBeRemoved, { selectedItemIndex });
+
+	//// At least one item is kept on primary list
+	//KeepAtLeastOneItemInPrimaryList(itemToBeRemoved, false/*shouldKeepFirst*/);
+
+	//// There should be no item is virtualized in this step
+	//MUX_ASSERT(!m_topDataProvider.HasInvalidWidth(itemToBeRemoved));
+	//m_topDataProvider.MoveItemsOutOfPrimaryList(itemToBeRemoved);
+	//    }
+	//}
+
+	private IList<int> FindMovableItemsRecoverToPrimaryList(double availableWidth, IList<int> includeItems)
+	{
+		List<int> toBeMoved = new List<int>();
+
+		var size = m_topDataProvider.Size();
+
+		// Included Items take high priority, all of them are included in recovery list
+		foreach (var index in includeItems)
+		{
+			var width = m_topDataProvider.GetWidthForItem(index);
+			toBeMoved.Add(index);
+			availableWidth -= width;
+		}
+
+		int i = 0;
+		while (i < size && availableWidth > 0)
+		{
+			if (!m_topDataProvider.IsItemInPrimaryList(i) && !CollectionHelper.contains(includeItems, i))
+			{
+				var width = m_topDataProvider.GetWidthForItem(i);
+				if (availableWidth >= width)
+				{
+					toBeMoved.push_back(i);
+					availableWidth -= width;
+				}
+				else
+				{
+					break;
+				}
+			}
+			i++;
+		}
+		// Keep at one item is not in primary list. Two possible reason: 
+		//  1, Most likely it's caused by m_topNavigationRecoveryGracePeriod
+		//  2, virtualization and it doesn't have cached width
+		if (i == size && !toBeMoved.empty())
+		{
+			toBeMoved.Add();
+		}
+		return toBeMoved;
+	}
+
+	private IList<int> FindMovableItemsToBeRemovedFromPrimaryList(float widthAtLeastToBeRemoved, std.CalculatorList<int> &excludeItems)
+	{
+		List<int> toBeMoved = new List<int>();
+
+		int i = m_topDataProvider.Size() - 1;
+		while (i >= 0 && widthAtLeastToBeRemoved > 0)
+		{
+			if (m_topDataProvider.IsItemInPrimaryList(i))
+			{
+				if (!CollectionHelper.contains(excludeItems, i))
+				{
+					var width = m_topDataProvider.GetWidthForItem(i);
+					toBeMoved.Add(i);
+					widthAtLeastToBeRemoved -= width;
+				}
+			}
+			i--;
+		}
+
+		return toBeMoved;
+	}
+
+	private IList<int> FindMovableItemsBeyondAvailableWidth(float availableWidth)
+	{
+		List<int> toBeMoved = new List<int>();
+		var ir = m_topNavRepeater;
+		if (ir != null)
+		{
+			int selectedItemIndexInPrimary = m_topDataProvider.IndexOf(SelectedItem(), NavigationViewSplitVectorID.PrimaryList);
+			int size = m_topDataProvider.GetPrimaryListSize();
+
+			float requiredWidth = 0;
+
+			for (int i = 0; i < size; i++)
+			{
+				if (i != selectedItemIndexInPrimary)
+				{
+					bool shouldMove = true;
+					if (requiredWidth <= availableWidth)
+					{
+						var container = ir.TryGetElement(i);
+						if (container != null)
+						{
+							if (container is UIElement containerAsUIElement)
+							{
+								var width = containerAsUIElement.DesiredSize.Width;
+								requiredWidth += width;
+								shouldMove = requiredWidth > availableWidth;
+							}
+						}
+						else
+						{
+							// item is virtualized but not realized.                    
+						}
+					}
+
+					if (shouldMove)
+					{
+						toBeMoved.Add(i);
+					}
+				}
 			}
 		}
 
-		private void UpdatePaneDisplayMode(NavigationViewPaneDisplayMode oldDisplayMode, NavigationViewPaneDisplayMode newDisplayMode)
+		return m_topDataProvider.ConvertPrimaryIndexToIndex(toBeMoved);
+	}
+
+	private void KeepAtLeastOneItemInPrimaryList(IList<int> itemInPrimaryToBeRemoved, bool shouldKeepFirst)
+	{
+		if (itemInPrimaryToBeRemoved.Count > 0 && (int)(itemInPrimaryToBeRemoved.Count) == m_topDataProvider.GetPrimaryListSize())
 		{
-			if (!m_appliedTemplate)
+			if (shouldKeepFirst)
 			{
-				return;
+				itemInPrimaryToBeRemoved.RemoveAt(0);
 			}
-
-			UpdatePaneDisplayMode();
-
-			// For better user experience, We help customer to Open/Close Pane automatically when we switch between LeftMinimal <. Left.
-			// From other navigation PaneDisplayMode to LeftMinimal, we expect pane is closed.
-			// From LeftMinimal to Left, it is expected the pane is open. For other configurations, this seems counterintuitive.
-			// See #1702 and #1787
-			if (!IsTopNavigationView())
+			else
 			{
-				if (IsPaneOpen)
+				itemInPrimaryToBeRemoved.RemoveAt(itemInPrimaryToBeRemoved.Count - 1);
+			}
+		}
+	}
+
+	private int GetSelectedItemIndex()
+	{
+		return m_topDataProvider.IndexOf(SelectedItem);
+	}
+
+	private double GetPaneToggleButtonWidth()
+	{
+		return (double)SharedHelpers.FindInApplicationResources("PaneToggleButtonWidth", c_paneToggleButtonWidth);
+	}
+
+	private double GetPaneToggleButtonHeight()
+	{
+		return (double)SharedHelpers.FindInApplicationResources("PaneToggleButtonHeight", c_paneToggleButtonHeight);
+	}
+
+	private void UpdateTopNavigationWidthCache()
+	{
+		int size = m_topDataProvider.GetPrimaryListSize();
+		var ir = m_topNavRepeater;
+		if (ir != null)
+		{
+			for (int i = 0; i < size; i++)
+			{
+				var container = ir.TryGetElement(i);
+				if (container != null)
 				{
-					if (newDisplayMode == NavigationViewPaneDisplayMode.LeftMinimal)
+					if (container as UIElement is containerAsUIElement)
 					{
-						ClosePane();
+						var width = containerAsUIElement.DesiredSize.Width;
+						m_topDataProvider.UpdateWidthForPrimaryItem(i, width);
 					}
 				}
 				else
 				{
-					if (oldDisplayMode == NavigationViewPaneDisplayMode.LeftMinimal
-						&& newDisplayMode == NavigationViewPaneDisplayMode.Left)
-					{
-						OpenPane();
-					}
+					break;
 				}
 			}
 		}
+	}
 
-		//void UpdatePaneVisibility()
-		//{
-		//	var templateSettings = GetTemplateSettings();
-		//	if (IsPaneVisible())
-		//	{
-		//		if (IsTopNavigationView())
-		//		{
-		//			templateSettings.LeftPaneVisibility(Visibility.Collapsed);
-		//			templateSettings.TopPaneVisibility(Visibility.Visible);
-		//		}
-		//		else
-		//		{
-		//			templateSettings.TopPaneVisibility(Visibility.Collapsed);
-		//			templateSettings.LeftPaneVisibility(Visibility.Visible);
-		//		}
+	private bool IsTopNavigationView()
+	{
+		return PaneDisplayMode == NavigationViewPaneDisplayMode.Top;
+	}
 
-		//		VisualStateManager.GoToState(this, "PaneVisible", false /*useTransitions*/);
-		//	}
-		//	else
-		//	{
-		//		templateSettings.TopPaneVisibility(Visibility.Collapsed);
-		//		templateSettings.LeftPaneVisibility(Visibility.Collapsed);
+	private bool IsTopPrimaryListVisible()
+	{
+		return m_topNavRepeater != null && (TemplateSettings.TopPaneVisibility == Visibility.Visible);
+	}
 
-		//		VisualStateManager.GoToState(this, "PaneCollapsed", false /*useTransitions*/);
-		//	}
-		//}
+	private void CoerceToGreaterThanZero(ref double value)
+	{
+		// Property coercion for OpenPaneLength, CompactPaneLength, CompactModeThresholdWidth, ExpandedModeThresholdWidth
+		value = Math.Max(value, 0.0);
+	}
 
-		//void SwapPaneHeaderContent(tracker_ref<ContentControl> newParentTrackRef, tracker_ref<ContentControl> oldParentTrackRef, hstring & propertyPathName)
-		//{
-		//	if (var newParent = newParentTrackRef)
-		//    {
-		//	if (var oldParent = oldParentTrackRef)
-		//        {
-		//		oldParent.ClearValue(ContentControl.ContentProperty());
-		//	}
+	private void OnPropertyChanged(DependencyPropertyChangedEventArgs args)
+	{
+		DependencyProperty property = args.Property;
 
-		//	SharedHelpers.SetBinding(propertyPathName, newParent, ContentControl.ContentProperty());
-		//}
-		//}
-
-		//void UpdateContentBindingsForPaneDisplayMode()
-		//{
-		//	UIElement autoSuggestBoxContentControl = null;
-		//	UIElement notControl = null;
-		//	if (!IsTopNavigationView())
-		//	{
-		//		autoSuggestBoxContentControl = m_leftNavPaneAutoSuggestBoxPresenter;
-		//		notControl = m_topNavPaneAutoSuggestBoxPresenter;
-		//	}
-		//	else
-		//	{
-		//		autoSuggestBoxContentControl = m_topNavPaneAutoSuggestBoxPresenter;
-		//		notControl = m_leftNavPaneAutoSuggestBoxPresenter;
-		//	}
-
-		//	if (autoSuggestBoxContentControl)
-		//	{
-		//		if (notControl)
-		//		{
-		//			notControl.ClearValue(ContentControl.ContentProperty());
-		//		}
-
-		//		SharedHelpers.SetBinding("AutoSuggestBox", autoSuggestBoxContentControl, ContentControl.ContentProperty());
-		//	}
-		//}
-
-		//void UpdateHeaderVisibility()
-		//{
-		//	if (!m_appliedTemplate)
-		//	{
-		//		return;
-		//	}
-
-		//	UpdateHeaderVisibility(DisplayMode());
-		//}
-
-		private void UpdateHeaderVisibility(NavigationViewDisplayMode displayMode)
+		if (property == IsPaneOpenProperty)
 		{
-			// Ignore AlwaysShowHeader property in case DisplayMode is Minimal and it's not Top NavigationView
-			bool showHeader = AlwaysShowHeader || (!IsTopNavigationView() && displayMode == NavigationViewDisplayMode.Minimal);
-
-			// Like bug 17517627, Customer like WallPaper Studio 10 expects a HeaderContent visual even if Header() is null. 
-			// App crashes when they have dependency on that visual, but the crash is not directly state that it's a header problem.   
-			// NavigationView doesn't use quirk, but we determine the version by themeresource.
-			// As a workaround, we 'quirk' it for RS4 or before release. if it's RS4 or before, HeaderVisible is not related to Header().
-			// If theme resource is RS5 or later, we will not show header if header is null.
-			if (SharedHelpers.IsRS5OrHigher())
-			{
-				showHeader = Header != null && showHeader;
-			}
-			VisualStateManager.GoToState(this, showHeader ? "HeaderVisible" : "HeaderCollapsed", false /*useTransitions*/);
+			OnIsPaneOpenChanged();
+			UpdateVisualStateForDisplayModeGroup(DisplayMode);
 		}
-
-		void UpdatePaneTabFocusNavigation()
+		else if (property == CompactModeThresholdWidthProperty ||
+			property == ExpandedModeThresholdWidthProperty)
 		{
-			if (!m_appliedTemplate)
-			{
-				return;
-			}
-
-			if (SharedHelpers.IsRS2OrHigher())
-			{
-				KeyboardNavigationMode mode = KeyboardNavigationMode.Local;
-
-				var splitView = m_rootSplitView;
-				if (splitView != null)
-				{
-					// If the pane is open in an overlay (light-dismiss) mode, trap keyboard focus inside the pane
-					if (IsPaneOpen && (splitView.DisplayMode == SplitViewDisplayMode.Overlay || splitView.DisplayMode == SplitViewDisplayMode.CompactOverlay))
-					{
-						mode = KeyboardNavigationMode.Cycle;
-					}
-				}
-
-				var paneContentGrid = m_paneContentGrid;
-				if (paneContentGrid != null)
-				{
-					paneContentGrid.TabFocusNavigation = mode;
-				}
-			}
+			UpdateAdaptiveLayout(ActualWidth);
 		}
-
-		private void UpdatePaneToggleSize()
+		else if (property == AlwaysShowHeaderProperty || property == HeaderProperty)
 		{
-			if (!ShouldPreserveNavigationViewRS3Behavior())
-			{
-				var splitView = m_rootSplitView;
-				if (splitView != null)
-				{
-					double width = GetPaneToggleButtonWidth();
-					double togglePaneButtonWidth = width;
-
-					if (ShouldShowBackButton() && splitView.DisplayMode == SplitViewDisplayMode.Overlay)
-					{
-						double backButtonWidth = c_backButtonWidth;
-						var backButton = m_backButton;
-						if (backButton != null)
-						{
-							backButtonWidth = backButton.Width;
-						}
-
-						width += backButtonWidth;
-					}
-
-					if (!m_isClosedCompact && !string.IsNullOrEmpty(PaneTitle))
-					{
-						if (splitView.DisplayMode == SplitViewDisplayMode.Overlay && IsPaneOpen)
-						{
-							width = OpenPaneLength;
-							togglePaneButtonWidth = OpenPaneLength - ((ShouldShowBackButton() || ShouldShowCloseButton()) ? c_backButtonWidth : 0);
-						}
-						else if (!(splitView.DisplayMode == SplitViewDisplayMode.Overlay && !IsPaneOpen))
-						{
-							width = OpenPaneLength;
-							togglePaneButtonWidth = OpenPaneLength;
-						}
-					}
-
-					var toggleButton = m_paneToggleButton;
-					if (toggleButton != null)
-					{
-						toggleButton.Width = togglePaneButtonWidth;
-					}
-				}
-			}
+			UpdateHeaderVisibility();
 		}
-
-		private void UpdateBackAndCloseButtonsVisibility()
+		else if (property == SelectedItemProperty)
 		{
-			if (!m_appliedTemplate)
+			OnSelectedItemPropertyChanged(args);
+		}
+		else if (property == PaneTitleProperty)
+		{
+			UpdatePaneTitleFrameworkElementParents();
+			UpdateBackAndCloseButtonsVisibility();
+			UpdatePaneToggleSize();
+		}
+		else if (property == IsBackButtonVisibleProperty)
+		{
+			UpdateBackAndCloseButtonsVisibility();
+			UpdateAdaptiveLayout(ActualWidth);
+			if (IsTopNavigationView())
 			{
-				return;
+				InvalidateTopNavPrimaryLayout();
 			}
 
-			var shouldShowBackButton = ShouldShowBackButton();
-			var backButtonVisibility = Util.VisibilityFromBool(shouldShowBackButton);
-			var visualStateDisplayMode = GetVisualStateDisplayMode(DisplayMode);
-			bool useLeftPaddingForBackOrCloseButton =
-			   (visualStateDisplayMode == NavigationViewVisualStateDisplayMode.Minimal && !IsTopNavigationView()) ||
-			   visualStateDisplayMode == NavigationViewVisualStateDisplayMode.MinimalWithBackButton;
-			double leftPaddingForBackOrCloseButton = 0.0;
-			double paneHeaderPaddingForToggleButton = 0.0;
-			double paneHeaderPaddingForCloseButton = 0.0;
-			double paneHeaderContentBorderRowMinHeight = 0.0;
-
-			GetTemplateSettings().BackButtonVisibility(backButtonVisibility);
-
-			if (m_paneToggleButton != null && IsPaneToggleButtonVisible)
+			if (g_IsTelemetryProviderEnabled && IsBackButtonVisible == NavigationViewBackButtonVisible.Collapsed)
 			{
-				paneHeaderContentBorderRowMinHeight = GetPaneToggleButtonHeight();
-				paneHeaderPaddingForToggleButton = GetPaneToggleButtonWidth();
-
-				if (useLeftPaddingForBackOrCloseButton)
-				{
-					leftPaddingForBackOrCloseButton = paneHeaderPaddingForToggleButton;
-				}
+				//  Explicitly disabling BackUI on NavigationView
+				//[[gsl.suppress(con.4)]] TraceLoggingWrite(
+				//	g_hTelemetryProvider,
+				//	"NavigationView_DisableBackUI",
+				//	TraceLoggingDescription("Developer explicitly disables the BackUI on NavigationView"));
 			}
-
+			// Enabling back button shifts grid instead of resizing, so let's update the layout.
 			var backButton = m_backButton;
 			if (backButton != null)
 			{
-				if (ShouldPreserveNavigationViewRS4Behavior())
-				{
-					backButton.Visibility = backButtonVisibility;
-				}
-
-				if (useLeftPaddingForBackOrCloseButton && backButtonVisibility == Visibility.Visible)
-				{
-					leftPaddingForBackOrCloseButton += backButton.Width;
-				}
+				backButton.UpdateLayout();
 			}
-
-			var closeButton = m_closeButton;
-			if (closeButton != null)
-			{
-				var closeButtonVisibility = Util.VisibilityFromBool(ShouldShowCloseButton());
-
-				closeButton.Visibility = closeButtonVisibility;
-
-				if (closeButtonVisibility == Visibility.Visible)
-				{
-					paneHeaderContentBorderRowMinHeight = Math.Max(paneHeaderContentBorderRowMinHeight, closeButton.Height());
-
-					if (useLeftPaddingForBackOrCloseButton)
-					{
-						paneHeaderPaddingForCloseButton = closeButton.Width;
-						leftPaddingForBackOrCloseButton += paneHeaderPaddingForCloseButton;
-					}
-				}
-			}
-
-			var contentLeftPadding = m_contentLeftPadding;
-			if (contentLeftPadding != null)
-			{
-				contentLeftPadding.Width = leftPaddingForBackOrCloseButton;
-			}
-
-			var paneHeaderToggleButtonColumn = m_paneHeaderToggleButtonColumn;
-			if (paneHeaderToggleButtonColumn != null)
-			{
-				// Account for the PaneToggleButton's width in the PaneHeader's placement.
-				paneHeaderToggleButtonColumn.Width = GridLengthHelper.FromValueAndType(paneHeaderPaddingForToggleButton, GridUnitType.Pixel);
-			}
-
-			var paneHeaderCloseButtonColumn = m_paneHeaderCloseButtonColumn;
-			if (paneHeaderCloseButtonColumn != null)
-			{
-				// Account for the CloseButton's width in the PaneHeader's placement.
-				paneHeaderCloseButtonColumn.Width = GridLengthHelper.FromValueAndType(paneHeaderPaddingForCloseButton, GridUnitType.Pixel);
-			}
-
-			var paneTitleHolderFrameworkElement = m_paneTitleHolderFrameworkElement;
-			if (paneTitleHolderFrameworkElement != null)
-			{
-				if (paneHeaderContentBorderRowMinHeight == 0.00 && paneTitleHolderFrameworkElement.Visibility == Visibility.Visible)
-				{
-					// Handling the case where the PaneTottleButton is collapsed and the PaneTitle's height needs to push the rest of the NavigationView's UI down.
-					paneHeaderContentBorderRowMinHeight = paneTitleHolderFrameworkElement.ActualHeight;
-				}
-			}
-
-			var paneHeaderContentBorderRow = m_paneHeaderContentBorderRow;
-			if (paneHeaderContentBorderRow != null)
-			{
-				paneHeaderContentBorderRow.MinHeight = paneHeaderContentBorderRowMinHeight;
-			}
-
-			var paneContentGridAsUIE = m_paneContentGrid;
-			if (paneContentGridAsUIE != null)
-			{
-				if (paneContentGridAsUIE is Grid paneContentGrid)
-				{
-					var rowDefs = paneContentGrid.RowDefinitions;
-
-					if (rowDefs.Count >= c_backButtonRowDefinition)
-					{
-						var rowDef = rowDefs[c_backButtonRowDefinition];
-
-						int backButtonRowHeight = 0;
-						if (!IsOverlay() && shouldShowBackButton)
-						{
-							backButtonRowHeight = c_backButtonHeight;
-						}
-						else if (ShouldPreserveNavigationViewRS3Behavior())
-						{
-							// This row represented the height of the hamburger+margin in RS3 and prior
-							backButtonRowHeight = c_toggleButtonHeightWhenShouldPreserveNavigationViewRS3Behavior;
-						}
-
-						var length = GridLengthHelper.FromPixels(backButtonRowHeight);
-						rowDef.Height = length;
-					}
-				}
-			}
-
-			if (!ShouldPreserveNavigationViewRS4Behavior())
-			{
-				VisualStateManager.GoToState(this, shouldShowBackButton ? "BackButtonVisible" : "BackButtonCollapsed", false /*useTransitions*/);
-			}
-			UpdateTitleBarPadding();
+			UpdatePaneLayout();
 		}
 
-		private void UpdatePaneTitleMargins()
+		else if (property == MenuItemsSourceProperty)
+		{
+			UpdateRepeaterItemsSource(true /*forceSelectionModelUpdate*/);
+		}
+		else if (property == MenuItemsProperty)
+		{
+			UpdateRepeaterItemsSource(true /*forceSelectionModelUpdate*/);
+		}
+		else if (property == FooterMenuItemsSourceProperty)
+		{
+			UpdateFooterRepeaterItemsSource(true /*sourceCollectionReset*/, true /*sourceCollectionChanged*/);
+		}
+		else if (property == FooterMenuItemsProperty)
+		{
+			UpdateFooterRepeaterItemsSource(true /*sourceCollectionReset*/, true /*sourceCollectionChanged*/);
+		}
+		else if (property == PaneDisplayModeProperty)
+		{
+			// m_wasForceClosed is set to true because ToggleButton is clicked and Pane is closed.
+			// When PaneDisplayMode is changed, reset the force flag to make the Pane can be opened automatically again.
+			m_wasForceClosed = false;
+
+			CollapseTopLevelMenuItems(args.OldValue);
+			UpdatePaneToggleButtonVisibility();
+			UpdatePaneDisplayMode(args.OldValue, args.NewValue);
+			UpdatePaneTitleFrameworkElementParents();
+			UpdatePaneVisibility();
+			UpdateVisualState();
+			UpdatePaneButtonsWidths();
+		}
+		else if (property == IsPaneVisibleProperty)
+		{
+			UpdatePaneVisibility();
+			UpdateVisualStateForDisplayModeGroup(DisplayMode);
+
+			// When NavView is in expaneded mode with fixed window size, setting IsPaneVisible to false doesn't closes the pane
+			// We manually close/open it for this case
+			if (!IsPaneVisible && IsPaneOpen)
+			{
+				ClosePane();
+			}
+
+			if (IsPaneVisible && DisplayMode == NavigationViewDisplayMode.Expanded && !IsPaneOpen())
+			{
+				OpenPane();
+			}
+		}
+		else if (property == OverflowLabelModeProperty)
+		{
+			if (m_appliedTemplate)
+			{
+				UpdateVisualStateForOverflowButton();
+				InvalidateTopNavPrimaryLayout();
+			}
+		}
+		else if (property == AutoSuggestBoxProperty)
+		{
+			InvalidateTopNavPrimaryLayout();
+			if (args.OldValue != null)
+			{
+				m_autoSuggestBoxSuggestionChosenRevoker.revoke();
+			}
+			if (args.NewValue is AutoSuggestBox newAutoSuggestBox)
+			{
+				m_autoSuggestBoxSuggestionChosenRevoker = newAutoSuggestBox.SuggestionChosen(auto_revoke, { this, &OnAutoSuggestBoxSuggestionChosen });
+			}
+		}
+		else if (property == SelectionFollowsFocusProperty)
+		{
+			UpdateSingleSelectionFollowsFocusTemplateSetting();
+		}
+		else if (property == IsPaneToggleButtonVisibleProperty)
+		{
+			UpdatePaneTitleFrameworkElementParents();
+			UpdateBackAndCloseButtonsVisibility();
+			UpdatePaneToggleButtonVisibility();
+			UpdateVisualState();
+		}
+		else if (property == IsSettingsVisibleProperty)
+		{
+			UpdateFooterRepeaterItemsSource(false /*sourceCollectionReset*/, true /*sourceCollectionChanged*/);
+		}
+		else if (property == CompactPaneLengthProperty)
+		{
+			// Need to update receiver margins when CompactPaneLength changes
+			UpdatePaneShadow();
+
+			// Update pane-button-grid width when pane is closed and we are not in minimal
+			UpdatePaneButtonsWidths();
+		}
+		else if (property == IsTitleBarAutoPaddingEnabledProperty)
+		{
+			UpdateTitleBarPadding();
+		}
+		else if (property == MenuItemTemplateProperty ||
+			property == MenuItemTemplateSelectorProperty)
+		{
+			SyncItemTemplates();
+		}
+	}
+
+	private void UpdateNavigationViewItemsFactory()
+	{
+		object newItemTemplate = MenuItemTemplate;
+		if (newItemTemplate == null)
+		{
+			newItemTemplate = new MenuItemTemplateSelector();
+		}
+		m_navigationViewItemsFactory.UserElementFactory = newItemTemplate;
+	}
+
+	private void SyncItemTemplates()
+	{
+		UpdateNavigationViewItemsFactory();
+	}
+
+	private void OnRepeaterLoaded(object sender, RoutedEventArgs args)
+	{
+		var item = SelectedItem;
+		if (item != null)
+		{
+			if (!IsSelectionSuppressed(item))
+			{
+				var navViewItem = NavigationViewItemOrSettingsContentFromData(item);
+				if (navViewItem != null)
+				{
+					navViewItem.IsSelected = true;
+				}
+			}
+			AnimateSelectionChanged(item);
+		}
+	}
+
+	// If app is .net app, the lifetime of NavigationView maybe depends on garbage collection.
+	// Unlike other revoker, TitleBar is in global space and we need to stop receiving changed event when it's unloaded.
+	// So we do hook it in Loaded and Unhook it in Unloaded
+	private void OnUnloaded(object sender, RoutedEventArgs args)
+	{
+		var coreTitleBar = m_coreTitleBar;
+		if (coreTitleBar != null)
+		{
+			coreTitleBar.LayoutMetricsChanged += OnTitleBarMetricsChanged;
+			coreTitleBar.IsVisibleChanged += OnTitleBarIsVisibleChanged;
+		}
+	}
+
+	private void OnLoaded(object sender, RoutedEventArgs args)
+	{
+		if (m_updateVisualStateForDisplayModeFromOnLoaded)
+		{
+			m_updateVisualStateForDisplayModeFromOnLoaded = false;
+			UpdateVisualStateForDisplayModeGroup(DisplayMode);
+		}
+
+		var coreTitleBar = m_coreTitleBar;
+		if (coreTitleBar != null)
+		{
+			coreTitleBar.LayoutMetricsChanged += OnTitleBarMetricsChanged;
+			coreTitleBar.IsVisibleChanged += OnTitleBarIsVisibleChanged;
+		}
+		// Update pane buttons now since we the CompactPaneLength is actually known now.
+		UpdatePaneButtonsWidths();
+	}
+
+	private void OnIsPaneOpenChanged()
+	{
+		var isPaneOpen = IsPaneOpen;
+		if (isPaneOpen && m_wasForceClosed)
+		{
+			m_wasForceClosed = false; // remove the pane open flag since Pane is opened.
+		}
+		else if (!m_isOpenPaneForInteraction && !isPaneOpen)
+		{
+			var splitView = m_rootSplitView;
+			if (splitView != null)
+			{
+				// splitview.IsPaneOpen and nav.IsPaneOpen is two way binding. If nav.IsPaneOpen=false and splitView.IsPaneOpen=true,
+				// then the pane has been closed by API and we treat it as a forced close.
+				// If, however, splitView.IsPaneOpen=false, then nav.IsPaneOpen is just following the SplitView here and the pane
+				// was closed, for example, due to app window resizing. We don't set the force flag in this situation.
+				m_wasForceClosed = splitView.IsPaneOpen;
+			}
+
+			else
+			{
+				// If there is no SplitView (for example it hasn't been loaded yet) then nav.IsPaneOpen was set directly
+				// so we treat it as a closed force.
+				m_wasForceClosed = true;
+			}
+		}
+
+		SetPaneToggleButtonAutomationName();
+		UpdatePaneTabFocusNavigation();
+		UpdateSettingsItemToolTip();
+		UpdatePaneTitleFrameworkElementParents();
+
+		if (SharedHelpers.IsThemeShadowAvailable())
+		{
+			var splitView = m_rootSplitView;
+			if (splitView != null)
+			{
+				var displayMode = splitView.DisplayMode;
+				var isOverlay = displayMode == SplitViewDisplayMode.Overlay || displayMode == SplitViewDisplayMode.CompactOverlay;
+				var paneRoot = splitView.Pane;
+				if (paneRoot != null)
+				{
+					var currentTranslation = paneRoot.Translation;
+					var translation = new Vector3(currentTranslation.X, currentTranslation.Y, IsPaneOpen && isOverlay ? c_paneElevationTranslationZ : 0.0f);
+					paneRoot.Translation = translation;
+				}
+			}
+		}
+		UpdatePaneButtonsWidths();
+	}
+
+	private void UpdatePaneToggleButtonVisibility()
+	{
+		var visible = IsPaneToggleButtonVisible && !IsTopNavigationView();
+		GetTemplateSettings().PaneToggleButtonVisibility(Util.VisibilityFromBool(visible));
+	}
+
+	private void UpdatePaneDisplayMode()
+	{
+		if (!m_appliedTemplate)
+		{
+			return;
+		}
+		if (!IsTopNavigationView())
+		{
+			UpdateAdaptiveLayout(ActualWidth, true /*forceSetDisplayMode*/);
+
+			SwapPaneHeaderContent(m_leftNavPaneHeaderContentBorder, m_paneHeaderOnTopPane, "PaneHeader");
+			SwapPaneHeaderContent(m_leftNavPaneCustomContentBorder, m_paneCustomContentOnTopPane, "PaneCustomContent");
+			SwapPaneHeaderContent(m_leftNavFooterContentBorder, m_paneFooterOnTopPane, "PaneFooter");
+
+			CreateAndHookEventsToSettings();
+
+			//if (UIElement8 thisAsUIElement8 = this)
+			{
+				var paneToggleButton = m_paneToggleButton;
+				if (paneToggleButton != null)
+				{
+					KeyTipTarget = paneToggleButton;
+				}
+			}
+
+		}
+
+		else
+		{
+			ClosePane();
+			SetDisplayMode(NavigationViewDisplayMode.Minimal, true);
+
+			SwapPaneHeaderContent(m_paneHeaderOnTopPane, m_leftNavPaneHeaderContentBorder, "PaneHeader");
+			SwapPaneHeaderContent(m_paneCustomContentOnTopPane, m_leftNavPaneCustomContentBorder, "PaneCustomContent");
+			SwapPaneHeaderContent(m_paneFooterOnTopPane, m_leftNavFooterContentBorder, "PaneFooter");
+
+			CreateAndHookEventsToSettings();
+
+			//if (UIElement8 thisAsUIElement8 = this)
+			{
+				var topNavOverflowButton = m_topNavOverflowButton;
+				if (topNavOverflowButton != null)
+				{
+					KeyTipTarget = topNavOverflowButton;
+				}
+			}
+		}
+
+		UpdateContentBindingsForPaneDisplayMode();
+		UpdateRepeaterItemsSource(false /*forceSelectionModelUpdate*/);
+		UpdateFooterRepeaterItemsSource(false /*sourceCollectionReset*/, false /*sourceCollectionChanged*/);
+		var selectedItem = SelectedItem;
+		if (selectedItem != null)
+		{
+			m_OrientationChangedPendingAnimation = true;
+		}
+	}
+
+	private void UpdatePaneDisplayMode(NavigationViewPaneDisplayMode oldDisplayMode, NavigationViewPaneDisplayMode newDisplayMode)
+	{
+		if (!m_appliedTemplate)
+		{
+			return;
+		}
+
+		UpdatePaneDisplayMode();
+
+		// For better user experience, We help customer to Open/Close Pane automatically when we switch between LeftMinimal <. Left.
+		// From other navigation PaneDisplayMode to LeftMinimal, we expect pane is closed.
+		// From LeftMinimal to Left, it is expected the pane is open. For other configurations, this seems counterintuitive.
+		// See #1702 and #1787
+		if (!IsTopNavigationView())
+		{
+			if (IsPaneOpen)
+			{
+				if (newDisplayMode == NavigationViewPaneDisplayMode.LeftMinimal)
+				{
+					ClosePane();
+				}
+			}
+			else
+			{
+				if (oldDisplayMode == NavigationViewPaneDisplayMode.LeftMinimal
+					&& newDisplayMode == NavigationViewPaneDisplayMode.Left)
+				{
+					OpenPane();
+				}
+			}
+		}
+	}
+
+	private void UpdatePaneVisibility()
+	{
+		var templateSettings = GetTemplateSettings();
+		if (IsPaneVisible())
+		{
+			if (IsTopNavigationView())
+			{
+				templateSettings.LeftPaneVisibility(Visibility.Collapsed);
+				templateSettings.TopPaneVisibility(Visibility.Visible);
+			}
+			else
+			{
+				templateSettings.TopPaneVisibility(Visibility.Collapsed);
+				templateSettings.LeftPaneVisibility(Visibility.Visible);
+			}
+
+			VisualStateManager.GoToState(this, "PaneVisible", false /*useTransitions*/);
+		}
+		else
+		{
+			templateSettings.TopPaneVisibility(Visibility.Collapsed);
+			templateSettings.LeftPaneVisibility(Visibility.Collapsed);
+
+			VisualStateManager.GoToState(this, "PaneCollapsed", false /*useTransitions*/);
+		}
+	}
+
+	private void SwapPaneHeaderContent(ContentControl newParentTrackRef, ContentControl oldParentTrackRef, string propertyPathName)
+	{
+		var newParent = newParentTrackRef;
+		if (newParent != null)
+		{
+			var oldParent = oldParentTrackRef;
+			if (oldParent != null)
+			{
+				oldParent.ClearValue(ContentControl.ContentProperty);
+			}
+
+			SharedHelpers.SetBinding(propertyPathName, newParent, ContentControl.ContentProperty);
+		}
+	}
+
+	private void UpdateContentBindingsForPaneDisplayMode()
+	{
+		UIElement autoSuggestBoxContentControl = null;
+		UIElement notControl = null;
+		if (!IsTopNavigationView())
+		{
+			autoSuggestBoxContentControl = m_leftNavPaneAutoSuggestBoxPresenter;
+			notControl = m_topNavPaneAutoSuggestBoxPresenter;
+		}
+		else
+		{
+			autoSuggestBoxContentControl = m_topNavPaneAutoSuggestBoxPresenter;
+			notControl = m_leftNavPaneAutoSuggestBoxPresenter;
+		}
+
+		if (autoSuggestBoxContentControl != null)
+		{
+			if (notControl != null)
+			{
+				notControl.ClearValue(ContentControl.ContentProperty);
+			}
+
+			SharedHelpers.SetBinding("AutoSuggestBox", autoSuggestBoxContentControl, ContentControl.ContentProperty());
+		}
+	}
+
+	private void UpdateHeaderVisibility()
+	{
+		if (!m_appliedTemplate)
+		{
+			return;
+		}
+
+		UpdateHeaderVisibility(DisplayMode);
+	}
+
+	private void UpdateHeaderVisibility(NavigationViewDisplayMode displayMode)
+	{
+		// Ignore AlwaysShowHeader property in case DisplayMode is Minimal and it's not Top NavigationView
+		bool showHeader = AlwaysShowHeader || (!IsTopNavigationView() && displayMode == NavigationViewDisplayMode.Minimal);
+
+		// Like bug 17517627, Customer like WallPaper Studio 10 expects a HeaderContent visual even if Header() is null. 
+		// App crashes when they have dependency on that visual, but the crash is not directly state that it's a header problem.   
+		// NavigationView doesn't use quirk, but we determine the version by themeresource.
+		// As a workaround, we 'quirk' it for RS4 or before release. if it's RS4 or before, HeaderVisible is not related to Header().
+		// If theme resource is RS5 or later, we will not show header if header is null.
+		if (SharedHelpers.IsRS5OrHigher())
+		{
+			showHeader = Header != null && showHeader;
+		}
+		VisualStateManager.GoToState(this, showHeader ? "HeaderVisible" : "HeaderCollapsed", false /*useTransitions*/);
+	}
+
+	void UpdatePaneTabFocusNavigation()
+	{
+		if (!m_appliedTemplate)
+		{
+			return;
+		}
+
+		if (SharedHelpers.IsRS2OrHigher())
+		{
+			KeyboardNavigationMode mode = KeyboardNavigationMode.Local;
+
+			var splitView = m_rootSplitView;
+			if (splitView != null)
+			{
+				// If the pane is open in an overlay (light-dismiss) mode, trap keyboard focus inside the pane
+				if (IsPaneOpen && (splitView.DisplayMode == SplitViewDisplayMode.Overlay || splitView.DisplayMode == SplitViewDisplayMode.CompactOverlay))
+				{
+					mode = KeyboardNavigationMode.Cycle;
+				}
+			}
+
+			var paneContentGrid = m_paneContentGrid;
+			if (paneContentGrid != null)
+			{
+				paneContentGrid.TabFocusNavigation = mode;
+			}
+		}
+	}
+
+	private void UpdatePaneToggleSize()
+	{
+		if (!ShouldPreserveNavigationViewRS3Behavior())
+		{
+			var splitView = m_rootSplitView;
+			if (splitView != null)
+			{
+				double width = GetPaneToggleButtonWidth();
+				double togglePaneButtonWidth = width;
+
+				if (ShouldShowBackButton() && splitView.DisplayMode == SplitViewDisplayMode.Overlay)
+				{
+					double backButtonWidth = c_backButtonWidth;
+					var backButton = m_backButton;
+					if (backButton != null)
+					{
+						backButtonWidth = backButton.Width;
+					}
+
+					width += backButtonWidth;
+				}
+
+				if (!m_isClosedCompact && !string.IsNullOrEmpty(PaneTitle))
+				{
+					if (splitView.DisplayMode == SplitViewDisplayMode.Overlay && IsPaneOpen)
+					{
+						width = OpenPaneLength;
+						togglePaneButtonWidth = OpenPaneLength - ((ShouldShowBackButton() || ShouldShowCloseButton()) ? c_backButtonWidth : 0);
+					}
+					else if (!(splitView.DisplayMode == SplitViewDisplayMode.Overlay && !IsPaneOpen))
+					{
+						width = OpenPaneLength;
+						togglePaneButtonWidth = OpenPaneLength;
+					}
+				}
+
+				var toggleButton = m_paneToggleButton;
+				if (toggleButton != null)
+				{
+					toggleButton.Width = togglePaneButtonWidth;
+				}
+			}
+		}
+	}
+
+	private void UpdateBackAndCloseButtonsVisibility()
+	{
+		if (!m_appliedTemplate)
+		{
+			return;
+		}
+
+		var shouldShowBackButton = ShouldShowBackButton();
+		var backButtonVisibility = Util.VisibilityFromBool(shouldShowBackButton);
+		var visualStateDisplayMode = GetVisualStateDisplayMode(DisplayMode);
+		bool useLeftPaddingForBackOrCloseButton =
+		   (visualStateDisplayMode == NavigationViewVisualStateDisplayMode.Minimal && !IsTopNavigationView()) ||
+		   visualStateDisplayMode == NavigationViewVisualStateDisplayMode.MinimalWithBackButton;
+		double leftPaddingForBackOrCloseButton = 0.0;
+		double paneHeaderPaddingForToggleButton = 0.0;
+		double paneHeaderPaddingForCloseButton = 0.0;
+		double paneHeaderContentBorderRowMinHeight = 0.0;
+
+		GetTemplateSettings().BackButtonVisibility(backButtonVisibility);
+
+		if (m_paneToggleButton != null && IsPaneToggleButtonVisible)
+		{
+			paneHeaderContentBorderRowMinHeight = GetPaneToggleButtonHeight();
+			paneHeaderPaddingForToggleButton = GetPaneToggleButtonWidth();
+
+			if (useLeftPaddingForBackOrCloseButton)
+			{
+				leftPaddingForBackOrCloseButton = paneHeaderPaddingForToggleButton;
+			}
+		}
+
+		var backButton = m_backButton;
+		if (backButton != null)
 		{
 			if (ShouldPreserveNavigationViewRS4Behavior())
 			{
-				var paneTitleFrameworkElement = m_paneTitleFrameworkElement
-							if (paneTitleFrameworkElement != null)
-				{
-					double width = GetPaneToggleButtonWidth();
+				backButton.Visibility = backButtonVisibility;
+			}
 
-					if (ShouldShowBackButton() && IsOverlay())
+			if (useLeftPaddingForBackOrCloseButton && backButtonVisibility == Visibility.Visible)
+			{
+				leftPaddingForBackOrCloseButton += backButton.Width;
+			}
+		}
+
+		var closeButton = m_closeButton;
+		if (closeButton != null)
+		{
+			var closeButtonVisibility = Util.VisibilityFromBool(ShouldShowCloseButton());
+
+			closeButton.Visibility = closeButtonVisibility;
+
+			if (closeButtonVisibility == Visibility.Visible)
+			{
+				paneHeaderContentBorderRowMinHeight = Math.Max(paneHeaderContentBorderRowMinHeight, closeButton.Height());
+
+				if (useLeftPaddingForBackOrCloseButton)
+				{
+					paneHeaderPaddingForCloseButton = closeButton.Width;
+					leftPaddingForBackOrCloseButton += paneHeaderPaddingForCloseButton;
+				}
+			}
+		}
+
+		var contentLeftPadding = m_contentLeftPadding;
+		if (contentLeftPadding != null)
+		{
+			contentLeftPadding.Width = leftPaddingForBackOrCloseButton;
+		}
+
+		var paneHeaderToggleButtonColumn = m_paneHeaderToggleButtonColumn;
+		if (paneHeaderToggleButtonColumn != null)
+		{
+			// Account for the PaneToggleButton's width in the PaneHeader's placement.
+			paneHeaderToggleButtonColumn.Width = GridLengthHelper.FromValueAndType(paneHeaderPaddingForToggleButton, GridUnitType.Pixel);
+		}
+
+		var paneHeaderCloseButtonColumn = m_paneHeaderCloseButtonColumn;
+		if (paneHeaderCloseButtonColumn != null)
+		{
+			// Account for the CloseButton's width in the PaneHeader's placement.
+			paneHeaderCloseButtonColumn.Width = GridLengthHelper.FromValueAndType(paneHeaderPaddingForCloseButton, GridUnitType.Pixel);
+		}
+
+		var paneTitleHolderFrameworkElement = m_paneTitleHolderFrameworkElement;
+		if (paneTitleHolderFrameworkElement != null)
+		{
+			if (paneHeaderContentBorderRowMinHeight == 0.00 && paneTitleHolderFrameworkElement.Visibility == Visibility.Visible)
+			{
+				// Handling the case where the PaneTottleButton is collapsed and the PaneTitle's height needs to push the rest of the NavigationView's UI down.
+				paneHeaderContentBorderRowMinHeight = paneTitleHolderFrameworkElement.ActualHeight;
+			}
+		}
+
+		var paneHeaderContentBorderRow = m_paneHeaderContentBorderRow;
+		if (paneHeaderContentBorderRow != null)
+		{
+			paneHeaderContentBorderRow.MinHeight = paneHeaderContentBorderRowMinHeight;
+		}
+
+		var paneContentGridAsUIE = m_paneContentGrid;
+		if (paneContentGridAsUIE != null)
+		{
+			if (paneContentGridAsUIE is Grid paneContentGrid)
+			{
+				var rowDefs = paneContentGrid.RowDefinitions;
+
+				if (rowDefs.Count >= c_backButtonRowDefinition)
+				{
+					var rowDef = rowDefs[c_backButtonRowDefinition];
+
+					int backButtonRowHeight = 0;
+					if (!IsOverlay() && shouldShowBackButton)
 					{
-						width += c_backButtonWidth;
+						backButtonRowHeight = c_backButtonHeight;
+					}
+					else if (ShouldPreserveNavigationViewRS3Behavior())
+					{
+						// This row represented the height of the hamburger+margin in RS3 and prior
+						backButtonRowHeight = c_toggleButtonHeightWhenShouldPreserveNavigationViewRS3Behavior;
 					}
 
-					paneTitleFrameworkElement.Margin = new Thickness(width, 0, 0, 0); // see "Hamburger title" on uni
+					var length = GridLengthHelper.FromPixels(backButtonRowHeight);
+					rowDef.Height = length;
 				}
 			}
 		}
 
-		private void UpdateSelectionForMenuItems()
+		if (!ShouldPreserveNavigationViewRS4Behavior())
 		{
-			// Allow customer to set selection by NavigationViewItem.IsSelected.
-			// If there are more than two items are set IsSelected=true, the first one is actually selected.
-			// If SelectedItem is set, IsSelected is ignored.
-			//         <MenuItems>
-			//              <NavigationViewItem Content = "Collection" IsSelected = "True" / >
-			//         </MenuItems>
-			if (SelectedItem == null)
+			VisualStateManager.GoToState(this, shouldShowBackButton ? "BackButtonVisible" : "BackButtonCollapsed", false /*useTransitions*/);
+		}
+		UpdateTitleBarPadding();
+	}
+
+	private void UpdatePaneTitleMargins()
+	{
+		if (ShouldPreserveNavigationViewRS4Behavior())
+		{
+			var paneTitleFrameworkElement = m_paneTitleFrameworkElement
+										if (paneTitleFrameworkElement != null)
 			{
-				bool foundFirstSelected = false;
+				double width = GetPaneToggleButtonWidth();
 
-				// firstly check Menu items
-				if (MenuItems is IList<object> menuItems)
+				if (ShouldShowBackButton() && IsOverlay())
 				{
-					foundFirstSelected = UpdateSelectedItemFromMenuItems(menuItems);
+					width += c_backButtonWidth;
 				}
 
-				// then do same for footer items and tell wenever selected item alreadyfound in MenuItems
-				if (FooterMenuItems is IList<object> footerItems)
-				{
-					UpdateSelectedItemFromMenuItems(footerItems, foundFirstSelected);
-				}
+				paneTitleFrameworkElement.Margin = new Thickness(width, 0, 0, 0); // see "Hamburger title" on uni
 			}
 		}
+	}
 
-		private bool UpdateSelectedItemFromMenuItems(IList<object> menuItems, bool foundFirstSelected = false)
+	private void UpdateSelectionForMenuItems()
+	{
+		// Allow customer to set selection by NavigationViewItem.IsSelected.
+		// If there are more than two items are set IsSelected=true, the first one is actually selected.
+		// If SelectedItem is set, IsSelected is ignored.
+		//         <MenuItems>
+		//              <NavigationViewItem Content = "Collection" IsSelected = "True" / >
+		//         </MenuItems>
+		if (SelectedItem == null)
 		{
-			for (int i = 0; i < (int)(menuItems.Count); i++)
+			bool foundFirstSelected = false;
+
+			// firstly check Menu items
+			if (MenuItems is IList<object> menuItems)
 			{
-				if (menuItems[i] is NavigationViewItem item)
+				foundFirstSelected = UpdateSelectedItemFromMenuItems(menuItems);
+			}
+
+			// then do same for footer items and tell wenever selected item alreadyfound in MenuItems
+			if (FooterMenuItems is IList<object> footerItems)
+			{
+				UpdateSelectedItemFromMenuItems(footerItems, foundFirstSelected);
+			}
+		}
+	}
+
+	private bool UpdateSelectedItemFromMenuItems(IList<object> menuItems, bool foundFirstSelected = false)
+	{
+		for (int i = 0; i < (int)(menuItems.Count); i++)
+		{
+			if (menuItems[i] is NavigationViewItem item)
+			{
+				if (item.IsSelected)
 				{
-					if (item.IsSelected)
+					if (!foundFirstSelected)
 					{
-						if (!foundFirstSelected)
+						try
 						{
-							try
-							{
-								m_shouldIgnoreNextSelectionChange = true;
-								SelectedItem = item;
-								foundFirstSelected = true;
-							}
-							finally
-							{
-								m_shouldIgnoreNextSelectionChange = false;
-							}
+							m_shouldIgnoreNextSelectionChange = true;
+							SelectedItem = item;
+							foundFirstSelected = true;
 						}
-						else
+						finally
 						{
-							item.IsSelected = false;
+							m_shouldIgnoreNextSelectionChange = false;
 						}
-					}
-				}
-			}
-			return foundFirstSelected;
-		}
-
-		private void OnTitleBarMetricsChanged(object sender, object args)
-		{
-			UpdateTitleBarPadding();
-		}
-
-		private void OnTitleBarIsVisibleChanged(CoreApplicationViewTitleBar sender, object args)
-		{
-			UpdateTitleBarPadding();
-		}
-
-		private void ClosePaneIfNeccessaryAfterItemIsClicked(NavigationViewItem selectedContainer)
-		{
-			if (IsPaneOpen &&
-				DisplayMode != NavigationViewDisplayMode.Expanded &&
-				!DoesNavigationViewItemHaveChildren(selectedContainer) &&
-				!m_shouldIgnoreNextSelectionChange)
-			{
-				ClosePane();
-			}
-		}
-
-		private bool NeedTopPaddingForRS5OrHigher(CoreApplicationViewTitleBar coreTitleBar)
-		{
-			// Starting on RS5, we will be using the following IsVisible API together with ExtendViewIntoTitleBar
-			// to decide whether to try to add top padding or not.
-			// We don't add padding when in fullscreen or tablet mode.
-			return coreTitleBar.IsVisible && coreTitleBar.ExtendViewIntoTitleBar
-				&& !IsFullScreenOrTabletMode();
-		}
-
-		private void UpdateTitleBarPadding()
-		{
-			if (!m_appliedTemplate)
-			{
-				return;
-			}
-
-			double topPadding = 0;
-
-			var coreTitleBar = m_coreTitleBar;
-			if (coreTitleBar != null)
-			{
-				bool needsTopPadding = false;
-
-				// Do not set a top padding when the IsTitleBarAutoPaddingEnabled property is set to False.
-				if (IsTitleBarAutoPaddingEnabled)
-				{
-					if (ShouldPreserveNavigationViewRS3Behavior())
-					{
-						needsTopPadding = true;
-					}
-					else if (ShouldPreserveNavigationViewRS4Behavior())
-					{
-						// For RS4 apps maintain the behavior that we shipped for RS4.
-						// We keep this behavior for app compact purposes.
-						needsTopPadding = !coreTitleBar.ExtendViewIntoTitleBar;
 					}
 					else
 					{
-						needsTopPadding = NeedTopPaddingForRS5OrHigher(coreTitleBar);
+						item.IsSelected = false;
 					}
 				}
+			}
+		}
+		return foundFirstSelected;
+	}
 
-				if (needsTopPadding)
+	private void OnTitleBarMetricsChanged(object sender, object args)
+	{
+		UpdateTitleBarPadding();
+	}
+
+	private void OnTitleBarIsVisibleChanged(CoreApplicationViewTitleBar sender, object args)
+	{
+		UpdateTitleBarPadding();
+	}
+
+	private void ClosePaneIfNeccessaryAfterItemIsClicked(NavigationViewItem selectedContainer)
+	{
+		if (IsPaneOpen &&
+			DisplayMode != NavigationViewDisplayMode.Expanded &&
+			!DoesNavigationViewItemHaveChildren(selectedContainer) &&
+			!m_shouldIgnoreNextSelectionChange)
+		{
+			ClosePane();
+		}
+	}
+
+	private bool NeedTopPaddingForRS5OrHigher(CoreApplicationViewTitleBar coreTitleBar)
+	{
+		// Starting on RS5, we will be using the following IsVisible API together with ExtendViewIntoTitleBar
+		// to decide whether to try to add top padding or not.
+		// We don't add padding when in fullscreen or tablet mode.
+		return coreTitleBar.IsVisible && coreTitleBar.ExtendViewIntoTitleBar
+			&& !IsFullScreenOrTabletMode();
+	}
+
+	private void UpdateTitleBarPadding()
+	{
+		if (!m_appliedTemplate)
+		{
+			return;
+		}
+
+		double topPadding = 0;
+
+		var coreTitleBar = m_coreTitleBar;
+		if (coreTitleBar != null)
+		{
+			bool needsTopPadding = false;
+
+			// Do not set a top padding when the IsTitleBarAutoPaddingEnabled property is set to False.
+			if (IsTitleBarAutoPaddingEnabled)
+			{
+				if (ShouldPreserveNavigationViewRS3Behavior())
 				{
-					// Only add extra padding if the NavView is the "root" of the app,
-					// but not if the app is expanding into the titlebar
-					UIElement root = Windows.UI.Xaml.Window.Current.Content;
-					GeneralTransform gt = TransformToVisual(root);
-					Point pos = gt.TransformPoint(Point.Zero);
+					needsTopPadding = true;
+				}
+				else if (ShouldPreserveNavigationViewRS4Behavior())
+				{
+					// For RS4 apps maintain the behavior that we shipped for RS4.
+					// We keep this behavior for app compact purposes.
+					needsTopPadding = !coreTitleBar.ExtendViewIntoTitleBar;
+				}
+				else
+				{
+					needsTopPadding = NeedTopPaddingForRS5OrHigher(coreTitleBar);
+				}
+			}
 
-					if (pos.Y == 0.0f)
-					{
-						topPadding = coreTitleBar.Height;
-					}
+			if (needsTopPadding)
+			{
+				// Only add extra padding if the NavView is the "root" of the app,
+				// but not if the app is expanding into the titlebar
+				UIElement root = Windows.UI.Xaml.Window.Current.Content;
+				GeneralTransform gt = TransformToVisual(root);
+				Point pos = gt.TransformPoint(Point.Zero);
+
+				if (pos.Y == 0.0f)
+				{
+					topPadding = coreTitleBar.Height;
+				}
+			}
+
+			if (ShouldPreserveNavigationViewRS4Behavior())
+			{
+				var fe = m_togglePaneTopPadding;
+				if (fe != null)
+				{
+					fe.Height = topPadding;
 				}
 
-				if (ShouldPreserveNavigationViewRS4Behavior())
+				fe = m_contentPaneTopPadding;
+				if (fe != null)
 				{
-					var fe = m_togglePaneTopPadding;
-					if (fe != null)
-					{
-						fe.Height = topPadding;
-					}
-
-					fe = m_contentPaneTopPadding;
-					if (fe != null)
-					{
-						fe.Height = topPadding;
-					}
+					fe.Height = topPadding;
 				}
+			}
 
-				var paneTitleHolderFrameworkElement = m_paneTitleHolderFrameworkElement;
-				var paneToggleButton = m_paneToggleButton;
+			var paneTitleHolderFrameworkElement = m_paneTitleHolderFrameworkElement;
+			var paneToggleButton = m_paneToggleButton;
 
-				bool setPaneTitleHolderFrameworkElementMargin = paneTitleHolderFrameworkElement != null && paneTitleHolderFrameworkElement.Visibility == Visibility.Visible;
-				bool setPaneToggleButtonMargin = !setPaneTitleHolderFrameworkElementMargin && paneToggleButton != null && paneToggleButton.Visibility == Visibility.Visible;
+			bool setPaneTitleHolderFrameworkElementMargin = paneTitleHolderFrameworkElement != null && paneTitleHolderFrameworkElement.Visibility == Visibility.Visible;
+			bool setPaneToggleButtonMargin = !setPaneTitleHolderFrameworkElementMargin && paneToggleButton != null && paneToggleButton.Visibility == Visibility.Visible;
 
-				if (setPaneTitleHolderFrameworkElementMargin || setPaneToggleButtonMargin)
+			if (setPaneTitleHolderFrameworkElementMargin || setPaneToggleButtonMargin)
+			{
+				var thickness = ThicknessHelper.FromLengths(0, 0, 0, 0);
+
+				if (ShouldShowBackButton())
 				{
-					var thickness = ThicknessHelper.FromLengths(0, 0, 0, 0);
-
-					if (ShouldShowBackButton())
-					{
-						if (IsOverlay())
-						{
-							thickness = ThicknessHelper.FromLengths(c_backButtonWidth, 0, 0, 0);
-						}
-						else
-						{
-							thickness = ThicknessHelper.FromLengths(0, c_backButtonHeight, 0, 0);
-						}
-					}
-					else if (ShouldShowCloseButton() && IsOverlay())
+					if (IsOverlay())
 					{
 						thickness = ThicknessHelper.FromLengths(c_backButtonWidth, 0, 0, 0);
 					}
-
-					if (setPaneTitleHolderFrameworkElementMargin)
-					{
-						// The PaneHeader is hosted by PaneTitlePresenter and PaneTitleHolder.
-						paneTitleHolderFrameworkElement.Margin(thickness);
-					}
 					else
 					{
-						// The PaneHeader is hosted by PaneToggleButton
-						paneToggleButton.Margin(thickness);
+						thickness = ThicknessHelper.FromLengths(0, c_backButtonHeight, 0, 0);
 					}
 				}
-			}
-
-			var templateSettings = TemplateSettings;
-			if (templateSettings != null)
-			{
-				// 0.0 and 0.00000000 is not the same in double world. try to reduce the number of TopPadding update event. epsilon is 0.1 here.
-				if (Math.Abs(templateSettings.TopPadding - topPadding) > 0.1)
+				else if (ShouldShowCloseButton() && IsOverlay())
 				{
-					GetTemplateSettings().TopPadding = topPadding;
-				}
-			}
-		}
-
-		private void OnAutoSuggestBoxSuggestionChosen(AutoSuggestBox sender, AutoSuggestBoxSuggestionChosenEventArgs args)
-		{
-			// When in compact or minimal, we want to close pane when an item gets selected.
-			if (DisplayMode != NavigationViewDisplayMode.Expanded && args.SelectedItem != null)
-			{
-				ClosePane();
-			}
-		}
-
-		private void RaiseDisplayModeChanged(NavigationViewDisplayMode displayMode)
-		{
-			SetValue(DisplayModeProperty, displayMode);
-			var eventArgs = new NavigationViewDisplayModeChangedEventArgs(displayMode);
-			DisplayModeChanged?.Invoke(this, eventArgs);
-		}
-
-		// This method attaches the series of animations which are fired off dependent upon the amount 
-		// of space give and the length of the strings involved. It occurs upon re-rendering.
-		private void CreateAndAttachHeaderAnimation(Visual visual)
-		{
-			var compositor = visual.Compositor;
-			var cubicFunction = compositor.CreateCubicBezierEasingFunction(new Vector2(0.0f, 0.35f), new Vector2(0.15f, 1.0f));
-			var moveAnimation = compositor.CreateVector3KeyFrameAnimation();
-			moveAnimation.Target = "Offset";
-			moveAnimation.InsertExpressionKeyFrame(1.0f, "this.FinalValue", cubicFunction);
-			moveAnimation.Duration = TimeSpan.FromMilliseconds(200);
-
-			var collection = compositor.CreateImplicitAnimationCollection();
-			collection.Add("Offset", moveAnimation);
-			visual.ImplicitAnimations = collection;
-		}
-
-		private bool IsFullScreenOrTabletMode()
-		{
-			// ApplicationView.GetForCurrentView() is an expensive call - make sure to cache the ApplicationView
-			if (m_applicationView == null)
-			{
-				m_applicationView = ApplicationView.GetForCurrentView();
-			}
-
-			// UIViewSettings.GetForCurrentView() is an expensive call - make sure to cache the UIViewSettings
-			if (m_uiViewSettings == null)
-			{
-				m_uiViewSettings = UIViewSettings.GetForCurrentView();
-			}
-
-			bool isFullScreenMode = m_applicationView.IsFullScreenMode;
-			bool isTabletMode = m_uiViewSettings.UserInteractionMode == UserInteractionMode.Touch;
-
-			return isFullScreenMode || isTabletMode;
-		}
-
-		private void UpdatePaneShadow()
-		{
-			if (SharedHelpers.IsThemeShadowAvailable())
-			{
-				Canvas shadowReceiver = (Canvas)GetTemplateChild(c_paneShadowReceiverCanvas);
-				if (shadowReceiver == null)
-				{
-					shadowReceiver = new Canvas();
-					shadowReceiver.Name(c_paneShadowReceiverCanvas);
-
-					var contentGrid = GetTemplateChild(c_contentGridName) as Grid;
-					if (contentGrid != null)
-					{
-						contentGrid.SetRowSpan(shadowReceiver, contentGrid.RowDefinitions.Count);
-						contentGrid.SetRow(shadowReceiver, 0);
-						// Only register to columns if those are actually defined
-						if (contentGrid.ColumnDefinitions.Count > 0)
-						{
-							contentGrid.SetColumn(shadowReceiver, 0);
-							contentGrid.SetColumnSpan(shadowReceiver, contentGrid.ColumnDefinitions.Count);
-						}
-						contentGrid.Children.Add(shadowReceiver);
-
-						var shadow = new ThemeShadow();
-						shadow.Receivers.Add(shadowReceiver);
-						var splitView = m_rootSplitView;
-						if (splitView != null)
-						{
-							var paneRoot = splitView.Pane;
-							if (paneRoot != null)
-							{
-								paneRoot.Shadow = shadow;
-							}
-						}
-					}
+					thickness = ThicknessHelper.FromLengths(c_backButtonWidth, 0, 0, 0);
 				}
 
-
-				// Shadow will get clipped if casting on the splitView.Content directly
-				// Creating a canvas with negative margins as receiver to allow shadow to be drawn outside the content grid 
-				Thickness shadowReceiverMargin = { 0, -c_paneElevationTranslationZ, -c_paneElevationTranslationZ, -c_paneElevationTranslationZ };
-
-				// Ensuring shadow is aligned to the left
-				shadowReceiver.HorizontalAlignment(HorizontalAlignment.Left);
-
-				// Ensure shadow is as wide as the pane when it is open
-				if (DisplayMode() == NavigationViewDisplayMode.Compact)
+				if (setPaneTitleHolderFrameworkElementMargin)
 				{
-					shadowReceiver.Width(OpenPaneLength());
+					// The PaneHeader is hosted by PaneTitlePresenter and PaneTitleHolder.
+					paneTitleHolderFrameworkElement.Margin(thickness);
 				}
 				else
 				{
-					shadowReceiver.Width(OpenPaneLength() - shadowReceiverMargin.Right);
+					// The PaneHeader is hosted by PaneToggleButton
+					paneToggleButton.Margin(thickness);
 				}
-				shadowReceiver.Margin(shadowReceiverMargin);
 			}
 		}
 
-		private T GetContainerForData<T>(object data)
-			where T : class
+		var templateSettings = TemplateSettings;
+		if (templateSettings != null)
 		{
-			if (data == null)
+			// 0.0 and 0.00000000 is not the same in double world. try to reduce the number of TopPadding update event. epsilon is 0.1 here.
+			if (Math.Abs(templateSettings.TopPadding - topPadding) > 0.1)
 			{
-				return null;
+				GetTemplateSettings().TopPadding = topPadding;
 			}
+		}
+	}
 
-			var nvi = data as T;
-			if (nvi != null)
-			{
-				return nvi;
-			}
+	private void OnAutoSuggestBoxSuggestionChosen(AutoSuggestBox sender, AutoSuggestBoxSuggestionChosenEventArgs args)
+	{
+		// When in compact or minimal, we want to close pane when an item gets selected.
+		if (DisplayMode != NavigationViewDisplayMode.Expanded && args.SelectedItem != null)
+		{
+			ClosePane();
+		}
+	}
 
-			// First conduct a basic top level search in main menu, which should succeed for a lot of scenarios.
-			var mainRepeater = IsTopNavigationView() ? m_topNavRepeater : m_leftNavRepeater;
-			var itemIndex = GetIndexFromItem(mainRepeater, data);
-			UIElement container;
-			if (itemIndex >= 0)
+	private void RaiseDisplayModeChanged(NavigationViewDisplayMode displayMode)
+	{
+		SetValue(DisplayModeProperty, displayMode);
+		var eventArgs = new NavigationViewDisplayModeChangedEventArgs(displayMode);
+		DisplayModeChanged?.Invoke(this, eventArgs);
+	}
+
+	// This method attaches the series of animations which are fired off dependent upon the amount 
+	// of space give and the length of the strings involved. It occurs upon re-rendering.
+	private void CreateAndAttachHeaderAnimation(Visual visual)
+	{
+		var compositor = visual.Compositor;
+		var cubicFunction = compositor.CreateCubicBezierEasingFunction(new Vector2(0.0f, 0.35f), new Vector2(0.15f, 1.0f));
+		var moveAnimation = compositor.CreateVector3KeyFrameAnimation();
+		moveAnimation.Target = "Offset";
+		moveAnimation.InsertExpressionKeyFrame(1.0f, "this.FinalValue", cubicFunction);
+		moveAnimation.Duration = TimeSpan.FromMilliseconds(200);
+
+		var collection = compositor.CreateImplicitAnimationCollection();
+		collection.Add("Offset", moveAnimation);
+		visual.ImplicitAnimations = collection;
+	}
+
+	private bool IsFullScreenOrTabletMode()
+	{
+		// ApplicationView.GetForCurrentView() is an expensive call - make sure to cache the ApplicationView
+		if (m_applicationView == null)
+		{
+			m_applicationView = ApplicationView.GetForCurrentView();
+		}
+
+		// UIViewSettings.GetForCurrentView() is an expensive call - make sure to cache the UIViewSettings
+		if (m_uiViewSettings == null)
+		{
+			m_uiViewSettings = UIViewSettings.GetForCurrentView();
+		}
+
+		bool isFullScreenMode = m_applicationView.IsFullScreenMode;
+		bool isTabletMode = m_uiViewSettings.UserInteractionMode == UserInteractionMode.Touch;
+
+		return isFullScreenMode || isTabletMode;
+	}
+
+	private void UpdatePaneShadow()
+	{
+		if (SharedHelpers.IsThemeShadowAvailable())
+		{
+			Canvas shadowReceiver = (Canvas)GetTemplateChild(c_paneShadowReceiverCanvas);
+			if (shadowReceiver == null)
 			{
-				container = mainRepeater.TryGetElement(itemIndex);
-				if (container != null)
+				shadowReceiver = new Canvas();
+				shadowReceiver.Name(c_paneShadowReceiverCanvas);
+
+				var contentGrid = GetTemplateChild(c_contentGridName) as Grid;
+				if (contentGrid != null)
 				{
-					return container as T;
+					contentGrid.SetRowSpan(shadowReceiver, contentGrid.RowDefinitions.Count);
+					contentGrid.SetRow(shadowReceiver, 0);
+					// Only register to columns if those are actually defined
+					if (contentGrid.ColumnDefinitions.Count > 0)
+					{
+						contentGrid.SetColumn(shadowReceiver, 0);
+						contentGrid.SetColumnSpan(shadowReceiver, contentGrid.ColumnDefinitions.Count);
+					}
+					contentGrid.Children.Add(shadowReceiver);
+
+					var shadow = new ThemeShadow();
+					shadow.Receivers.Add(shadowReceiver);
+					var splitView = m_rootSplitView;
+					if (splitView != null)
+					{
+						var paneRoot = splitView.Pane;
+						if (paneRoot != null)
+						{
+							paneRoot.Shadow = shadow;
+						}
+					}
 				}
 			}
 
-			// then look in footer menu
-			var footerRepeater = IsTopNavigationView() ? m_topNavFooterMenuRepeater : m_leftNavFooterMenuRepeater;
-			itemIndex = GetIndexFromItem(footerRepeater, data);
-			if (itemIndex >= 0)
-			{
-				container = footerRepeater.TryGetElement(itemIndex);
-				if (container != null)
-				{
-					return container as T;
-				}
-			}
 
-			// If unsuccessful, unfortunately we are going to have to search through the whole tree
-			// TODO: Either fix or remove implementation for TopNav.
-			// It may not be required due to top nav rarely having realized children in its default state.
-			container = SearchEntireTreeForContainer(mainRepeater, data);
+			// Shadow will get clipped if casting on the splitView.Content directly
+			// Creating a canvas with negative margins as receiver to allow shadow to be drawn outside the content grid 
+			Thickness shadowReceiverMargin = { 0, -c_paneElevationTranslationZ, -c_paneElevationTranslationZ, -c_paneElevationTranslationZ };
+
+			// Ensuring shadow is aligned to the left
+			shadowReceiver.HorizontalAlignment(HorizontalAlignment.Left);
+
+			// Ensure shadow is as wide as the pane when it is open
+			if (DisplayMode() == NavigationViewDisplayMode.Compact)
+			{
+				shadowReceiver.Width(OpenPaneLength());
+			}
+			else
+			{
+				shadowReceiver.Width(OpenPaneLength() - shadowReceiverMargin.Right);
+			}
+			shadowReceiver.Margin(shadowReceiverMargin);
+		}
+	}
+
+	private T GetContainerForData<T>(object data)
+		where T : class
+	{
+		if (data == null)
+		{
+			return null;
+		}
+
+		var nvi = data as T;
+		if (nvi != null)
+		{
+			return nvi;
+		}
+
+		// First conduct a basic top level search in main menu, which should succeed for a lot of scenarios.
+		var mainRepeater = IsTopNavigationView() ? m_topNavRepeater : m_leftNavRepeater;
+		var itemIndex = GetIndexFromItem(mainRepeater, data);
+		UIElement container;
+		if (itemIndex >= 0)
+		{
+			container = mainRepeater.TryGetElement(itemIndex);
 			if (container != null)
 			{
 				return container as T;
 			}
+		}
 
-			container = SearchEntireTreeForContainer(footerRepeater, data);
+		// then look in footer menu
+		var footerRepeater = IsTopNavigationView() ? m_topNavFooterMenuRepeater : m_leftNavFooterMenuRepeater;
+		itemIndex = GetIndexFromItem(footerRepeater, data);
+		if (itemIndex >= 0)
+		{
+			container = footerRepeater.TryGetElement(itemIndex);
 			if (container != null)
 			{
 				return container as T;
 			}
-
-			return null;
 		}
 
-		private UIElement SearchEntireTreeForContainer(ItemsRepeater rootRepeater, object data)
+		// If unsuccessful, unfortunately we are going to have to search through the whole tree
+		// TODO: Either fix or remove implementation for TopNav.
+		// It may not be required due to top nav rarely having realized children in its default state.
+		container = SearchEntireTreeForContainer(mainRepeater, data);
+		if (container != null)
 		{
-			//WINUI TODO: Temporary inefficient solution that results in unnecessary time complexity, fix.
-			var index = GetIndexFromItem(rootRepeater, data);
-			if (index != -1)
-			{
-				return rootRepeater.TryGetElement(index);
-			}
-
-			for (int i = 0; i < GetContainerCountInRepeater(rootRepeater); i++)
-			{
-				var container = rootRepeater.TryGetElement(i);
-				if (container != null)
-				{
-					if (container is NavigationViewItem nvi)
-					{
-						var nviRepeater = nvi.GetRepeater();
-						if (nviRepeater != null)
-						{
-							var foundElement = SearchEntireTreeForContainer(nviRepeater, data);
-							if (foundElement != null)
-							{
-								return foundElement;
-							}
-						}
-					}
-				}
-			}
-			return null;
+			return container as T;
 		}
 
-		private IndexPath SearchEntireTreeForIndexPath(ItemsRepeater rootRepeater, object data, bool isFooterRepeater)
+		container = SearchEntireTreeForContainer(footerRepeater, data);
+		if (container != null)
 		{
-			for (int i = 0; i < GetContainerCountInRepeater(rootRepeater); i++)
-			{
-				var container = rootRepeater.TryGetElement(i);
-				if (container != null)
-				{
-					if (container is NavigationViewItem nvi)
-					{
-						var ip = new IndexPath(new List<int>() { isFooterRepeater ? c_footerMenuBlockIndex : c_mainMenuBlockIndex, i });
-						var indexPath = SearchEntireTreeForIndexPath(nvi, data, ip);
-						if (indexPath != null)
-						{
-							return indexPath;
-						}
-					}
-				}
-			}
-			return null;
+			return container as T;
 		}
 
-		// There are two possibilities here if the passed in item has children. Either the children of the passed in container have already been realized,
-		// in which case we simply just iterate through the children containers, or they have not been realized yet and we have to iterate through the data
-		// and manually realize each item.
-		private IndexPath SearchEntireTreeForIndexPath(NavigationViewItem parentContainer, object data, IndexPath ip)
+		return null;
+	}
+
+	private UIElement SearchEntireTreeForContainer(ItemsRepeater rootRepeater, object data)
+	{
+		//WINUI TODO: Temporary inefficient solution that results in unnecessary time complexity, fix.
+		var index = GetIndexFromItem(rootRepeater, data);
+		if (index != -1)
 		{
-			bool areChildrenRealized = false;
-			var childrenRepeater = parentContainer?.GetRepeater();
-			if (childrenRepeater != null)
-			{
-				if (DoesRepeaterHaveRealizedContainers(childrenRepeater))
-				{
-					areChildrenRealized = true;
-					for (int i = 0; i < GetContainerCountInRepeater(childrenRepeater); i++)
-					{
-						var container = childrenRepeater.TryGetElement(i);
-						if (container != null)
-						{
-							if (container is NavigationViewItem nvi)
-							{
-								var newIndexPath = ip.CloneWithChildIndex(i);
-								if (nvi.Content == data)
-								{
-									return newIndexPath;
-								}
-								else
-								{
-									var foundIndexPath = SearchEntireTreeForIndexPath(nvi, data, newIndexPath);
-									if (foundIndexPath != null)
-									{
-										return foundIndexPath;
-									}
-								}
-							}
-						}
-					}
-				}
-			}
-
-			//If children are not realized, manually realize and search.
-			if (!areChildrenRealized)
-			{
-				var childrenData = GetChildren(parentContainer);
-				if (childrenData != null)
-				{
-					// Get children data in an enumarable form
-					var newDataSource = childrenData as ItemsSourceView;
-					if (childrenData != null && newDataSource == null)
-					{
-						newDataSource = new ItemsSourceView(childrenData);
-					}
-
-					for (int i = 0; i < newDataSource.Count; i++)
-					{
-						var newIndexPath = ip.CloneWithChildIndex(i);
-						var childData = newDataSource.GetAt(i);
-						if (childData == data)
-						{
-							return newIndexPath;
-						}
-						else
-						{
-							// Resolve databinding for item and search through that item's children
-							var nvib = ResolveContainerForItem(childData, i);
-							if (nvib != null)
-							{
-								if (nvib is NavigationViewItem nvi)
-								{
-									// Process x:bind
-									var extension = CachedVisualTreeHelpers.GetDataTemplateComponent(nvi);
-									if (extension != null)
-									{
-										// Clear out old data. 
-										extension.Recycle();
-										int nextPhase = VirtualizationInfo.PhaseReachedEnd;
-										// Run Phase 0
-										extension.ProcessBindings(childData, i, 0 /* currentPhase */, out nextPhase);
-
-										//WINUI TODO: If nextPhase is not -1, ProcessBinding for all the phases
-									}
-
-									var foundIndexPath = SearchEntireTreeForIndexPath(nvi, data, newIndexPath);
-									if (foundIndexPath != null)
-									{
-										return foundIndexPath;
-									}
-
-									//WINUI TODO: Recycle container!
-								}
-							}
-						}
-					}
-				}
-			}
-
-			return null;
+			return rootRepeater.TryGetElement(index);
 		}
 
-		private NavigationViewItemBase ResolveContainerForItem(object item, int index)
+		for (int i = 0; i < GetContainerCountInRepeater(rootRepeater); i++)
 		{
-			var args = new ElementFactoryGetArgs();
-			args.Data = item;
-			args.Index = index;
-
-			var container = m_navigationViewItemsFactory.GetElement(args);
+			var container = rootRepeater.TryGetElement(i);
 			if (container != null)
 			{
-				if (container is NavigationViewItemBase nvib)
+				if (container is NavigationViewItem nvi)
 				{
-					return nvib;
+					var nviRepeater = nvi.GetRepeater();
+					if (nviRepeater != null)
+					{
+						var foundElement = SearchEntireTreeForContainer(nviRepeater, data);
+						if (foundElement != null)
+						{
+							return foundElement;
+						}
+					}
 				}
 			}
-			return null;
 		}
+		return null;
+	}
 
-		private void RecycleContainer(UIElement container)
+	private IndexPath SearchEntireTreeForIndexPath(ItemsRepeater rootRepeater, object data, bool isFooterRepeater)
+	{
+		for (int i = 0; i < GetContainerCountInRepeater(rootRepeater); i++)
 		{
-			var args = new ElementFactoryRecycleArgs();
-			args.Element = container;
-			m_navigationViewItemsFactory.RecycleElement(args);
+			var container = rootRepeater.TryGetElement(i);
+			if (container != null)
+			{
+				if (container is NavigationViewItem nvi)
+				{
+					var ip = new IndexPath(new List<int>() { isFooterRepeater ? c_footerMenuBlockIndex : c_mainMenuBlockIndex, i });
+					var indexPath = SearchEntireTreeForIndexPath(nvi, data, ip);
+					if (indexPath != null)
+					{
+						return indexPath;
+					}
+				}
+			}
 		}
+		return null;
+	}
 
-		private int GetContainerCountInRepeater(ItemsRepeater ir)
+	// There are two possibilities here if the passed in item has children. Either the children of the passed in container have already been realized,
+	// in which case we simply just iterate through the children containers, or they have not been realized yet and we have to iterate through the data
+	// and manually realize each item.
+	private IndexPath SearchEntireTreeForIndexPath(NavigationViewItem parentContainer, object data, IndexPath ip)
+	{
+		bool areChildrenRealized = false;
+		var childrenRepeater = parentContainer?.GetRepeater();
+		if (childrenRepeater != null)
 		{
-			if (ir != null)
+			if (DoesRepeaterHaveRealizedContainers(childrenRepeater))
 			{
-				var repeaterItemSourceView = ir.ItemsSourceView;
-				if (repeaterItemSourceView != null)
+				areChildrenRealized = true;
+				for (int i = 0; i < GetContainerCountInRepeater(childrenRepeater); i++)
 				{
-					return repeaterItemSourceView.Count;
-				}
-			}
-			return -1;
-		}
-
-		private bool DoesRepeaterHaveRealizedContainers(ItemsRepeater ir)
-		{
-			if (ir != null)
-			{
-				if (ir.TryGetElement(0) != null)
-				{
-					return true;
-				}
-			}
-			return false;
-		}
-
-		private int GetIndexFromItem(ItemsRepeater ir, object data)
-		{
-			if (ir != null)
-			{
-				var itemsSourceView = ir.ItemsSourceView;
-				if (itemsSourceView != null)
-				{
-					return itemsSourceView.IndexOf(data);
-				}
-			}
-			return -1;
-		}
-
-		private object GetItemFromIndex(ItemsRepeater ir, int index)
-		{
-			if (ir != null)
-			{
-				var itemsSourceView = ir.ItemsSourceView;
-				if (itemsSourceView != null)
-				{
-					return itemsSourceView.GetAt(index);
-				}
-			}
-			return null;
-		}
-
-		private IndexPath GetIndexPathOfItem(object data)
-		{
-			if (data is NavigationViewItemBase nvib)
-			{
-				return GetIndexPathForContainer(nvib);
-			}
-
-			// In the databinding scenario, we need to conduct a search where we go through every item,
-			// realizing it if necessary.
-			if (IsTopNavigationView())
-			{
-				// First search through primary list
-				var ip = SearchEntireTreeForIndexPath(m_topNavRepeater, data, false /*isFooterRepeater*/);
-				if (ip != null)
-				{
-					return ip;
-				}
-
-				// If item was not located in primary list, search through overflow
-				ip = SearchEntireTreeForIndexPath(m_topNavRepeaterOverflowView, data, false /*isFooterRepeater*/);
-				if (ip != null)
-				{
-					return ip;
-				}
-
-				// If item was not located in primary list and overflow, search through footer
-				ip = SearchEntireTreeForIndexPath(m_topNavFooterMenuRepeater, data, true /*isFooterRepeater*/);
-				if (ip != null)
-				{
-					return ip;
-				}
-			}
-			else
-			{
-				var ip = SearchEntireTreeForIndexPath(m_leftNavRepeater, data, false /*isFooterRepeater*/);
-				if (ip != null)
-				{
-					return ip;
-				}
-
-				// If item was not located in primary list, search through footer
-				ip = SearchEntireTreeForIndexPath(m_leftNavFooterMenuRepeater, data, true /*isFooterRepeater*/)
-															if (ip != null)
-				{
-					return ip;
-				}
-			}
-
-			return new IndexPath(Array.Empty<int>());
-		}
-
-		private UIElement GetContainerForIndex(int index, bool inFooter)
-		{
-			if (IsTopNavigationView())
-			{
-				// Get the repeater that is presenting the first item
-				var ir = inFooter ? m_topNavFooterMenuRepeater
-					: (m_topDataProvider.IsItemInPrimaryList(index) ? m_topNavRepeater : m_topNavRepeaterOverflowView);
-
-				// Get the index of the item in the repeater
-				var irIndex = inFooter ? index : m_topDataProvider.ConvertOriginalIndexToIndex(index);
-
-				// Get the container of the first item
-				var container = ir.TryGetElement(irIndex);
-				if (container != null)
-				{
-					return container;
-				}
-			}
-
-			else
-			{
-				var container = inFooter ? m_leftNavFooterMenuRepeater.TryGetElement(index)
-					: m_leftNavRepeater.TryGetElement(index);
-				if (container != null)
-				{
-					return container as NavigationViewItemBase;
-				}
-			}
-			return null;
-		}
-
-		private NavigationViewItemBase GetContainerForIndexPath(IndexPath ip, bool lastVisible)
-		{
-			if (ip != null && ip.GetSize() > 0)
-			{
-				var container = GetContainerForIndex(ip.GetAt(1), ip.GetAt(0) == c_footerMenuBlockIndex /*inFooter*/);
-				if (container != null)
-				{
-					if (lastVisible)
+					var container = childrenRepeater.TryGetElement(i);
+					if (container != null)
 					{
 						if (container is NavigationViewItem nvi)
 						{
-							if (!nvi.IsExpanded)
+							var newIndexPath = ip.CloneWithChildIndex(i);
+							if (nvi.Content == data)
 							{
-								return nvi;
+								return newIndexPath;
+							}
+							else
+							{
+								var foundIndexPath = SearchEntireTreeForIndexPath(nvi, data, newIndexPath);
+								if (foundIndexPath != null)
+								{
+									return foundIndexPath;
+								}
 							}
 						}
 					}
-
-					// WINUI TODO: Fix below for top flyout scenario once the flyout is introduced in the XAML.
-					// We want to be able to retrieve containers for items that are in the flyout.
-					// This will return null if requesting children containers of
-					// items in the primary list, or unrealized items in the overflow popup.
-					// However this should not happen.
-					return GetContainerForIndexPath(container, ip, lastVisible);
 				}
 			}
-			return null;
 		}
 
-
-		private NavigationViewItemBase GetContainerForIndexPath(UIElement firstContainer, IndexPath ip, bool lastVisible)
+		//If children are not realized, manually realize and search.
+		if (!areChildrenRealized)
 		{
-			var container = firstContainer;
-			if (ip.GetSize() > 2)
+			var childrenData = GetChildren(parentContainer);
+			if (childrenData != null)
 			{
-				for (int i = 2; i < ip.GetSize(); i++)
+				// Get children data in an enumarable form
+				var newDataSource = childrenData as ItemsSourceView;
+				if (childrenData != null && newDataSource == null)
 				{
-					bool succeededGettingNextContainer = false;
+					newDataSource = new ItemsSourceView(childrenData);
+				}
+
+				for (int i = 0; i < newDataSource.Count; i++)
+				{
+					var newIndexPath = ip.CloneWithChildIndex(i);
+					var childData = newDataSource.GetAt(i);
+					if (childData == data)
+					{
+						return newIndexPath;
+					}
+					else
+					{
+						// Resolve databinding for item and search through that item's children
+						var nvib = ResolveContainerForItem(childData, i);
+						if (nvib != null)
+						{
+							if (nvib is NavigationViewItem nvi)
+							{
+								// Process x:bind
+								var extension = CachedVisualTreeHelpers.GetDataTemplateComponent(nvi);
+								if (extension != null)
+								{
+									// Clear out old data. 
+									extension.Recycle();
+									int nextPhase = VirtualizationInfo.PhaseReachedEnd;
+									// Run Phase 0
+									extension.ProcessBindings(childData, i, 0 /* currentPhase */, out nextPhase);
+
+									//WINUI TODO: If nextPhase is not -1, ProcessBinding for all the phases
+								}
+
+								var foundIndexPath = SearchEntireTreeForIndexPath(nvi, data, newIndexPath);
+								if (foundIndexPath != null)
+								{
+									return foundIndexPath;
+								}
+
+								//WINUI TODO: Recycle container!
+							}
+						}
+					}
+				}
+			}
+		}
+
+		return null;
+	}
+
+	private NavigationViewItemBase ResolveContainerForItem(object item, int index)
+	{
+		var args = new ElementFactoryGetArgs();
+		args.Data = item;
+		args.Index = index;
+
+		var container = m_navigationViewItemsFactory.GetElement(args);
+		if (container != null)
+		{
+			if (container is NavigationViewItemBase nvib)
+			{
+				return nvib;
+			}
+		}
+		return null;
+	}
+
+	private void RecycleContainer(UIElement container)
+	{
+		var args = new ElementFactoryRecycleArgs();
+		args.Element = container;
+		m_navigationViewItemsFactory.RecycleElement(args);
+	}
+
+	private int GetContainerCountInRepeater(ItemsRepeater ir)
+	{
+		if (ir != null)
+		{
+			var repeaterItemSourceView = ir.ItemsSourceView;
+			if (repeaterItemSourceView != null)
+			{
+				return repeaterItemSourceView.Count;
+			}
+		}
+		return -1;
+	}
+
+	private bool DoesRepeaterHaveRealizedContainers(ItemsRepeater ir)
+	{
+		if (ir != null)
+		{
+			if (ir.TryGetElement(0) != null)
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private int GetIndexFromItem(ItemsRepeater ir, object data)
+	{
+		if (ir != null)
+		{
+			var itemsSourceView = ir.ItemsSourceView;
+			if (itemsSourceView != null)
+			{
+				return itemsSourceView.IndexOf(data);
+			}
+		}
+		return -1;
+	}
+
+	private object GetItemFromIndex(ItemsRepeater ir, int index)
+	{
+		if (ir != null)
+		{
+			var itemsSourceView = ir.ItemsSourceView;
+			if (itemsSourceView != null)
+			{
+				return itemsSourceView.GetAt(index);
+			}
+		}
+		return null;
+	}
+
+	private IndexPath GetIndexPathOfItem(object data)
+	{
+		if (data is NavigationViewItemBase nvib)
+		{
+			return GetIndexPathForContainer(nvib);
+		}
+
+		// In the databinding scenario, we need to conduct a search where we go through every item,
+		// realizing it if necessary.
+		if (IsTopNavigationView())
+		{
+			// First search through primary list
+			var ip = SearchEntireTreeForIndexPath(m_topNavRepeater, data, false /*isFooterRepeater*/);
+			if (ip != null)
+			{
+				return ip;
+			}
+
+			// If item was not located in primary list, search through overflow
+			ip = SearchEntireTreeForIndexPath(m_topNavRepeaterOverflowView, data, false /*isFooterRepeater*/);
+			if (ip != null)
+			{
+				return ip;
+			}
+
+			// If item was not located in primary list and overflow, search through footer
+			ip = SearchEntireTreeForIndexPath(m_topNavFooterMenuRepeater, data, true /*isFooterRepeater*/);
+			if (ip != null)
+			{
+				return ip;
+			}
+		}
+		else
+		{
+			var ip = SearchEntireTreeForIndexPath(m_leftNavRepeater, data, false /*isFooterRepeater*/);
+			if (ip != null)
+			{
+				return ip;
+			}
+
+			// If item was not located in primary list, search through footer
+			ip = SearchEntireTreeForIndexPath(m_leftNavFooterMenuRepeater, data, true /*isFooterRepeater*/)
+																		if (ip != null)
+			{
+				return ip;
+			}
+		}
+
+		return new IndexPath(Array.Empty<int>());
+	}
+
+	private UIElement GetContainerForIndex(int index, bool inFooter)
+	{
+		if (IsTopNavigationView())
+		{
+			// Get the repeater that is presenting the first item
+			var ir = inFooter ? m_topNavFooterMenuRepeater
+				: (m_topDataProvider.IsItemInPrimaryList(index) ? m_topNavRepeater : m_topNavRepeaterOverflowView);
+
+			// Get the index of the item in the repeater
+			var irIndex = inFooter ? index : m_topDataProvider.ConvertOriginalIndexToIndex(index);
+
+			// Get the container of the first item
+			var container = ir.TryGetElement(irIndex);
+			if (container != null)
+			{
+				return container;
+			}
+		}
+
+		else
+		{
+			var container = inFooter ? m_leftNavFooterMenuRepeater.TryGetElement(index)
+				: m_leftNavRepeater.TryGetElement(index);
+			if (container != null)
+			{
+				return container as NavigationViewItemBase;
+			}
+		}
+		return null;
+	}
+
+	private NavigationViewItemBase GetContainerForIndexPath(IndexPath ip, bool lastVisible)
+	{
+		if (ip != null && ip.GetSize() > 0)
+		{
+			var container = GetContainerForIndex(ip.GetAt(1), ip.GetAt(0) == c_footerMenuBlockIndex /*inFooter*/);
+			if (container != null)
+			{
+				if (lastVisible)
+				{
 					if (container is NavigationViewItem nvi)
 					{
-						if (lastVisible && nvi.IsExpanded == false)
+						if (!nvi.IsExpanded)
 						{
 							return nvi;
 						}
-
-						var nviRepeater = nvi.GetRepeater();
-						if (nviRepeater != null)
-						{
-							var nextContainer = nviRepeater.TryGetElement(ip.GetAt(i));
-							if (nextContainer != null)
-							{
-								container = nextContainer;
-								succeededGettingNextContainer = true;
-							}
-						}
-					}
-					// If any of the above checks failed, it means something went wrong and we have an index for a non-existent repeater.
-					if (!succeededGettingNextContainer)
-					{
-						return null;
 					}
 				}
-			}
-			return container as NavigationViewItemBase;
-		}
 
-		private bool IsContainerTheSelectedItemInTheSelectionModel(NavigationViewItemBase nvib)
-		{
-			var selectedItem = m_selectionModel.SelectedItem;
-			if (selectedItem != null)
-			{
-				var selectedItemContainer = selectedItem as NavigationViewItemBase;
-				if (selectedItemContainer == null)
-				{
-					selectedItemContainer = GetContainerForIndexPath(m_selectionModel.SelectedIndex());
-				}
-
-				return selectedItemContainer == nvib;
-			}
-			return false;
-		}
-
-		private ItemsRepeater LeftNavRepeater => m_leftNavRepeater;
-
-		private NavigationViewItem GetSelectedContainer()
-		{
-			var selectedItem = SelectedItem;
-			if (selectedItem != null)
-			{
-				if (selectedItem is NavigationViewItem selectedItemContainer)
-				{
-					return selectedItemContainer;
-				}
-				else
-				{
-					return NavigationViewItemOrSettingsContentFromData(selectedItem);
-				}
-			}
-			return null;
-		}
-
-		private void Expand(NavigationViewItem item)
-		{
-			ChangeIsExpandedNavigationViewItem(item, true /*isExpanded*/);
-		}
-
-		private void Collapse(NavigationViewItem item)
-		{
-			ChangeIsExpandedNavigationViewItem(item, false /*isExpanded*/);
-		}
-
-		private bool DoesNavigationViewItemHaveChildren(NavigationViewItem nvi)
-		{
-			return nvi.MenuItems.Count > 0 || nvi.MenuItemsSource != null || nvi.HasUnrealizedChildren;
-		}
-
-		private void ToggleIsExpandedNavigationViewItem(NavigationViewItem nvi)
-		{
-			ChangeIsExpandedNavigationViewItem(nvi, !nvi.IsExpanded);
-		}
-
-		private void ChangeIsExpandedNavigationViewItem(NavigationViewItem nvi, bool isExpanded)
-		{
-			if (DoesNavigationViewItemHaveChildren(nvi))
-			{
-				nvi.IsExpanded = isExpanded;
+				// WINUI TODO: Fix below for top flyout scenario once the flyout is introduced in the XAML.
+				// We want to be able to retrieve containers for items that are in the flyout.
+				// This will return null if requesting children containers of
+				// items in the primary list, or unrealized items in the overflow popup.
+				// However this should not happen.
+				return GetContainerForIndexPath(container, ip, lastVisible);
 			}
 		}
+		return null;
+	}
 
-		private NavigationViewItem FindLowestLevelContainerToDisplaySelectionIndicator()
+
+	private NavigationViewItemBase GetContainerForIndexPath(UIElement firstContainer, IndexPath ip, bool lastVisible)
+	{
+		var container = firstContainer;
+		if (ip.GetSize() > 2)
 		{
-			var indexIntoIndex = 1;
-			var selectedIndex = m_selectionModel.SelectedIndex();
-			if (selectedIndex && selectedIndex.GetSize() > 1)
+			for (int i = 2; i < ip.GetSize(); i++)
 			{
-				var container = GetContainerForIndex(selectedIndex.GetAt(indexIntoIndex), selectedIndex.GetAt(0) == c_footerMenuBlockIndex /* inFooter */);
-				if (container != null)
+				bool succeededGettingNextContainer = false;
+				if (container is NavigationViewItem nvi)
 				{
-					if (container is NavigationViewItem nvi)
+					if (lastVisible && nvi.IsExpanded == false)
 					{
-						var nviImpl = nvi;
-						var isRepeaterVisible = nviImpl.IsRepeaterVisible();
-						while (nvi != null && isRepeaterVisible && !nvi.IsSelected && nvi.IsChildSelected)
-						{
-							indexIntoIndex++;
-							isRepeaterVisible = false;
-							var repeater = nviImpl.GetRepeater();
-							if (repeater != null)
-							{
-								var childContainer = repeater.TryGetElement(selectedIndex.GetAt(indexIntoIndex));
-								if (childContainer != null)
-								{
-									nvi = childContainer as NavigationViewItem;
-									nviImpl = nvi;
-									isRepeaterVisible = nviImpl.IsRepeaterVisible();
-								}
-							}
-						}
 						return nvi;
 					}
+
+					var nviRepeater = nvi.GetRepeater();
+					if (nviRepeater != null)
+					{
+						var nextContainer = nviRepeater.TryGetElement(ip.GetAt(i));
+						if (nextContainer != null)
+						{
+							container = nextContainer;
+							succeededGettingNextContainer = true;
+						}
+					}
+				}
+				// If any of the above checks failed, it means something went wrong and we have an index for a non-existent repeater.
+				if (!succeededGettingNextContainer)
+				{
+					return null;
 				}
 			}
-			return null;
 		}
+		return container as NavigationViewItemBase;
+	}
 
-		private void ShowHideChildrenItemsRepeater(NavigationViewItem nvi)
+	private bool IsContainerTheSelectedItemInTheSelectionModel(NavigationViewItemBase nvib)
+	{
+		var selectedItem = m_selectionModel.SelectedItem;
+		if (selectedItem != null)
 		{
-			var nviImpl = nvi;
-
-			nviImpl.ShowHideChildren();
-
-			if (nviImpl.ShouldRepeaterShowInFlyout())
+			var selectedItemContainer = selectedItem as NavigationViewItemBase;
+			if (selectedItemContainer == null)
 			{
-				if (nvi.IsExpanded)
-				{
-					m_lastItemExpandedIntoFlyout = nvi;
-				}
-				else
-				{
-					m_lastItemExpandedIntoFlyout = null;
-				}
+				selectedItemContainer = GetContainerForIndexPath(m_selectionModel.SelectedIndex());
 			}
 
-			// If SelectedItem is being hidden/shown, animate SelectionIndicator
-			if (!nvi.IsSelected && nvi.IsChildSelected)
-			{
-				if (!nviImpl.IsRepeaterVisible() && nvi.IsChildSelected)
-				{
-					AnimateSelectionChanged(nvi);
-				}
-				else
-				{
-					AnimateSelectionChanged(FindLowestLevelContainerToDisplaySelectionIndicator());
-				}
-			}
-
-			nviImpl.RotateExpandCollapseChevron(nvi.IsExpanded);
+			return selectedItemContainer == nvib;
 		}
+		return false;
+	}
 
-		private object GetChildren(NavigationViewItem nvi)
+	private ItemsRepeater LeftNavRepeater => m_leftNavRepeater;
+
+	private NavigationViewItem GetSelectedContainer()
+	{
+		var selectedItem = SelectedItem;
+		if (selectedItem != null)
 		{
-			if (nvi.MenuItems.Count > 0)
+			if (selectedItem is NavigationViewItem selectedItemContainer)
 			{
-				return nvi.MenuItems;
+				return selectedItemContainer;
 			}
-			return nvi.MenuItemsSource;
+			else
+			{
+				return NavigationViewItemOrSettingsContentFromData(selectedItem);
+			}
 		}
+		return null;
+	}
 
-		private ItemsRepeater GetChildRepeaterForIndexPath(IndexPath ip)
+	private void Expand(NavigationViewItem item)
+	{
+		ChangeIsExpandedNavigationViewItem(item, true /*isExpanded*/);
+	}
+
+	private void Collapse(NavigationViewItem item)
+	{
+		ChangeIsExpandedNavigationViewItem(item, false /*isExpanded*/);
+	}
+
+	private bool DoesNavigationViewItemHaveChildren(NavigationViewItem nvi)
+	{
+		return nvi.MenuItems.Count > 0 || nvi.MenuItemsSource != null || nvi.HasUnrealizedChildren;
+	}
+
+	private void ToggleIsExpandedNavigationViewItem(NavigationViewItem nvi)
+	{
+		ChangeIsExpandedNavigationViewItem(nvi, !nvi.IsExpanded);
+	}
+
+	private void ChangeIsExpandedNavigationViewItem(NavigationViewItem nvi, bool isExpanded)
+	{
+		if (DoesNavigationViewItemHaveChildren(nvi))
 		{
-			var container = GetContainerForIndexPath(ip) as NavigationViewItem;
+			nvi.IsExpanded = isExpanded;
+		}
+	}
+
+	private NavigationViewItem FindLowestLevelContainerToDisplaySelectionIndicator()
+	{
+		var indexIntoIndex = 1;
+		var selectedIndex = m_selectionModel.SelectedIndex();
+		if (selectedIndex && selectedIndex.GetSize() > 1)
+		{
+			var container = GetContainerForIndex(selectedIndex.GetAt(indexIntoIndex), selectedIndex.GetAt(0) == c_footerMenuBlockIndex /* inFooter */);
 			if (container != null)
 			{
-				return container.GetRepeater();
-			}
-			return null;
-		}
-
-
-		private object GetChildrenForItemInIndexPath(IndexPath ip, bool forceRealize)
-		{
-			if (ip != null && ip.GetSize() > 1)
-			{
-				var container = GetContainerForIndex(ip.GetAt(1), ip.GetAt(0) == c_footerMenuBlockIndex /*inFooter*/);
-				if (container != null)
+				if (container is NavigationViewItem nvi)
 				{
-					return GetChildrenForItemInIndexPath(container, ip, forceRealize);
-				}
-			}
-			return null;
-		}
-
-		private object GetChildrenForItemInIndexPath(UIElement firstContainer, IndexPath ip, bool forceRealize)
-		{
-			var container = firstContainer;
-			bool shouldRecycleContainer = false;
-			if (ip.GetSize() > 2)
-			{
-				for (int i = 2; i < ip.GetSize(); i++)
-				{
-					bool succeededGettingNextContainer = false;
-					if (container is NavigationViewItem nvi)
+					var nviImpl = nvi;
+					var isRepeaterVisible = nviImpl.IsRepeaterVisible();
+					while (nvi != null && isRepeaterVisible && !nvi.IsSelected && nvi.IsChildSelected)
 					{
-						var nextContainerIndex = ip.GetAt(i);
-						var nviRepeater = nvi.GetRepeater();
-						if (nviRepeater && DoesRepeaterHaveRealizedContainers(nviRepeater))
+						indexIntoIndex++;
+						isRepeaterVisible = false;
+						var repeater = nviImpl.GetRepeater();
+						if (repeater != null)
 						{
-							var nextContainer = nviRepeater.TryGetElement(nextContainerIndex);
-							if (nextContainer != null)
+							var childContainer = repeater.TryGetElement(selectedIndex.GetAt(indexIntoIndex));
+							if (childContainer != null)
 							{
-								container = nextContainer;
-								succeededGettingNextContainer = true;
+								nvi = childContainer as NavigationViewItem;
+								nviImpl = nvi;
+								isRepeaterVisible = nviImpl.IsRepeaterVisible();
 							}
 						}
-						else if (forceRealize)
+					}
+					return nvi;
+				}
+			}
+		}
+		return null;
+	}
+
+	private void ShowHideChildrenItemsRepeater(NavigationViewItem nvi)
+	{
+		var nviImpl = nvi;
+
+		nviImpl.ShowHideChildren();
+
+		if (nviImpl.ShouldRepeaterShowInFlyout())
+		{
+			if (nvi.IsExpanded)
+			{
+				m_lastItemExpandedIntoFlyout = nvi;
+			}
+			else
+			{
+				m_lastItemExpandedIntoFlyout = null;
+			}
+		}
+
+		// If SelectedItem is being hidden/shown, animate SelectionIndicator
+		if (!nvi.IsSelected && nvi.IsChildSelected)
+		{
+			if (!nviImpl.IsRepeaterVisible() && nvi.IsChildSelected)
+			{
+				AnimateSelectionChanged(nvi);
+			}
+			else
+			{
+				AnimateSelectionChanged(FindLowestLevelContainerToDisplaySelectionIndicator());
+			}
+		}
+
+		nviImpl.RotateExpandCollapseChevron(nvi.IsExpanded);
+	}
+
+	private object GetChildren(NavigationViewItem nvi)
+	{
+		if (nvi.MenuItems.Count > 0)
+		{
+			return nvi.MenuItems;
+		}
+		return nvi.MenuItemsSource;
+	}
+
+	private ItemsRepeater GetChildRepeaterForIndexPath(IndexPath ip)
+	{
+		var container = GetContainerForIndexPath(ip) as NavigationViewItem;
+		if (container != null)
+		{
+			return container.GetRepeater();
+		}
+		return null;
+	}
+
+
+	private object GetChildrenForItemInIndexPath(IndexPath ip, bool forceRealize)
+	{
+		if (ip != null && ip.GetSize() > 1)
+		{
+			var container = GetContainerForIndex(ip.GetAt(1), ip.GetAt(0) == c_footerMenuBlockIndex /*inFooter*/);
+			if (container != null)
+			{
+				return GetChildrenForItemInIndexPath(container, ip, forceRealize);
+			}
+		}
+		return null;
+	}
+
+	private object GetChildrenForItemInIndexPath(UIElement firstContainer, IndexPath ip, bool forceRealize)
+	{
+		var container = firstContainer;
+		bool shouldRecycleContainer = false;
+		if (ip.GetSize() > 2)
+		{
+			for (int i = 2; i < ip.GetSize(); i++)
+			{
+				bool succeededGettingNextContainer = false;
+				if (container is NavigationViewItem nvi)
+				{
+					var nextContainerIndex = ip.GetAt(i);
+					var nviRepeater = nvi.GetRepeater();
+					if (nviRepeater && DoesRepeaterHaveRealizedContainers(nviRepeater))
+					{
+						var nextContainer = nviRepeater.TryGetElement(nextContainerIndex);
+						if (nextContainer != null)
 						{
-							var childrenData = GetChildren(nvi);
-							if (childrenData != null)
+							container = nextContainer;
+							succeededGettingNextContainer = true;
+						}
+					}
+					else if (forceRealize)
+					{
+						var childrenData = GetChildren(nvi);
+						if (childrenData != null)
+						{
+							if (shouldRecycleContainer)
 							{
-								if (shouldRecycleContainer)
-								{
-									RecycleContainer(nvi);
-									shouldRecycleContainer = false;
-								}
+								RecycleContainer(nvi);
+								shouldRecycleContainer = false;
+							}
 
-								// Get children data in an enumarable form
-								var newDataSource = childrenData as ItemsSourceView;
-								if (childrenData && newDataSource == null)
-								{
-									newDataSource = ItemsSourceView(childrenData);
-								}
+							// Get children data in an enumarable form
+							var newDataSource = childrenData as ItemsSourceView;
+							if (childrenData && newDataSource == null)
+							{
+								newDataSource = ItemsSourceView(childrenData);
+							}
 
-								var data = newDataSource.GetAt(nextContainerIndex);
-								if (data != null)
+							var data = newDataSource.GetAt(nextContainerIndex);
+							if (data != null)
+							{
+								// Resolve databinding for item and search through that item's children
+								var nvib = ResolveContainerForItem(data, nextContainerIndex);
+								if (nvib != null)
 								{
-									// Resolve databinding for item and search through that item's children
-									var nvib = ResolveContainerForItem(data, nextContainerIndex);
-									if (nvib != null)
+									var nextContainer = nvib as NavigationViewItem;
+									if (nextContainer != null)
 									{
-										var nextContainer = nvib as NavigationViewItem;
-										if (nextContainer != null)
+										// Process x:bind
+										var extension = CachedVisualTreeHelpers.GetDataTemplateComponent(nextContainer);
+										if (extension != null)
 										{
-											// Process x:bind
-											var extension = CachedVisualTreeHelpers.GetDataTemplateComponent(nextContainer);
-											if (extension != null)
-											{
-												// Clear out old data. 
-												extension.Recycle();
-												int nextPhase = VirtualizationInfo.PhaseReachedEnd;
-												// Run Phase 0
-												extension.ProcessBindings(data, nextContainerIndex, 0 /* currentPhase */, out nextPhase); //TODO: This is not implemented yet
+											// Clear out old data. 
+											extension.Recycle();
+											int nextPhase = VirtualizationInfo.PhaseReachedEnd;
+											// Run Phase 0
+											extension.ProcessBindings(data, nextContainerIndex, 0 /* currentPhase */, out nextPhase); //TODO: This is not implemented yet
 
-												// TODO: If nextPhase is not -1, ProcessBinding for all the phases
-											}
-
-											container = nextContainer;
-											shouldRecycleContainer = true;
-											succeededGettingNextContainer = true;
+											// TODO: If nextPhase is not -1, ProcessBinding for all the phases
 										}
+
+										container = nextContainer;
+										shouldRecycleContainer = true;
+										succeededGettingNextContainer = true;
 									}
 								}
 							}
 						}
+					}
 
-					}
-					// If any of the above checks failed, it means something went wrong and we have an index for a non-existent repeater.
-					if (!succeededGettingNextContainer)
-					{
-						return null;
-					}
 				}
-			}
-
-			var nvi = container as NavigationViewItem;
-			if (nvi != null)
-			{
-				var children = GetChildren(nvi);
-				if (shouldRecycleContainer)
+				// If any of the above checks failed, it means something went wrong and we have an index for a non-existent repeater.
+				if (!succeededGettingNextContainer)
 				{
-					RecycleContainer(nvi);
-				}
-				return children;
-			}
-
-			return null;
-		}
-
-		private void CollapseTopLevelMenuItems(NavigationViewPaneDisplayMode oldDisplayMode)
-		{
-			// We want to make sure only top level items are visible when switching pane modes
-			if (oldDisplayMode == NavigationViewPaneDisplayMode.Top)
-			{
-				CollapseMenuItemsInRepeater(m_topNavRepeater);
-				CollapseMenuItemsInRepeater(m_topNavRepeaterOverflowView);
-			}
-			else
-			{
-				CollapseMenuItemsInRepeater(m_leftNavRepeater);
-			}
-		}
-
-		private void CollapseMenuItemsInRepeater(ItemsRepeater ir)
-		{
-			for (int index = 0; index < GetContainerCountInRepeater(ir); index++)
-			{
-				var element = ir.TryGetElement(index);
-				if (element != null)
-				{
-					if (element is NavigationViewItem nvi)
-					{
-						ChangeIsExpandedNavigationViewItem(nvi, false /*isExpanded*/);
-					}
+					return null;
 				}
 			}
 		}
 
-		private void RaiseExpandingEvent(NavigationViewItemBase container)
+		var nvi = container as NavigationViewItem;
+		if (nvi != null)
 		{
-			var eventArgs = new NavigationViewItemExpandingEventArgs(this);
-			eventArgs.ExpandingItemContainer = container;
-			Expanding?.Invoke(this, eventArgs);
+			var children = GetChildren(nvi);
+			if (shouldRecycleContainer)
+			{
+				RecycleContainer(nvi);
+			}
+			return children;
 		}
 
-		private void RaiseCollapsedEvent(NavigationViewItemBase container)
-		{
-			var eventArgs = new NavigationViewItemCollapsedEventArgs(this);
-			eventArgs.CollapsedItemContainer = container;
-			Collapsed?.Invoke(this, eventArgs);
-		}
+		return null;
+	}
 
-		private bool IsTopLevelItem(NavigationViewItemBase nvib)
+	private void CollapseTopLevelMenuItems(NavigationViewPaneDisplayMode oldDisplayMode)
+	{
+		// We want to make sure only top level items are visible when switching pane modes
+		if (oldDisplayMode == NavigationViewPaneDisplayMode.Top)
 		{
-			return IsRootItemsRepeater(GetParentItemsRepeaterForContainer(nvib));
+			CollapseMenuItemsInRepeater(m_topNavRepeater);
+			CollapseMenuItemsInRepeater(m_topNavRepeaterOverflowView);
+		}
+		else
+		{
+			CollapseMenuItemsInRepeater(m_leftNavRepeater);
 		}
 	}
+
+	private void CollapseMenuItemsInRepeater(ItemsRepeater ir)
+	{
+		for (int index = 0; index < GetContainerCountInRepeater(ir); index++)
+		{
+			var element = ir.TryGetElement(index);
+			if (element != null)
+			{
+				if (element is NavigationViewItem nvi)
+				{
+					ChangeIsExpandedNavigationViewItem(nvi, false /*isExpanded*/);
+				}
+			}
+		}
+	}
+
+	private void RaiseExpandingEvent(NavigationViewItemBase container)
+	{
+		var eventArgs = new NavigationViewItemExpandingEventArgs(this);
+		eventArgs.ExpandingItemContainer = container;
+		Expanding?.Invoke(this, eventArgs);
+	}
+
+	private void RaiseCollapsedEvent(NavigationViewItemBase container)
+	{
+		var eventArgs = new NavigationViewItemCollapsedEventArgs(this);
+		eventArgs.CollapsedItemContainer = container;
+		Collapsed?.Invoke(this, eventArgs);
+	}
+
+	private bool IsTopLevelItem(NavigationViewItemBase nvib)
+	{
+		return IsRootItemsRepeater(GetParentItemsRepeaterForContainer(nvib));
+	}
+}
 }

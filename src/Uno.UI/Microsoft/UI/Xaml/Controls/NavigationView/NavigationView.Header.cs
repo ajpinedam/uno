@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using Uno.Disposables;
 using Windows.ApplicationModel.Core;
 using Windows.UI.ViewManagement;
 using Windows.UI.Xaml;
@@ -85,6 +86,9 @@ namespace Microsoft.UI.Xaml.Controls
 		private RowDefinition m_paneHeaderContentBorderRow;
 
 		private NavigationViewItem m_lastItemExpandedIntoFlyout;
+
+
+		private SerialDisposable m_topNavOverflowItemsCollectionChangedRevoker = new SerialDisposable();
 
 		private bool m_wasForceClosed = false;
 		private bool m_isClosedCompact = false;
