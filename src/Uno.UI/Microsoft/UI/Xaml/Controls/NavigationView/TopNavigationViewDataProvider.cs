@@ -127,18 +127,18 @@ namespace Microsoft.UI.Xaml.Controls
 			return indexes;
 		}
 
-		private int ConvertOriginalIndexToIndex(int originalIndex)
+		internal int ConvertOriginalIndexToIndex(int originalIndex)
 		{
 			var vector = GetVector(IsItemInPrimaryList(originalIndex) ? NavigationViewSplitVectorID.PrimaryList : NavigationViewSplitVectorID.OverflowList);
 			return vector.IndexFromIndexInOriginalVector(originalIndex);
 		}
 
-		private void MoveItemsOutOfPrimaryList(IList<int> indexes)
+		internal void MoveItemsOutOfPrimaryList(IList<int> indexes)
 		{
 			MoveItemsToList(indexes, NavigationViewSplitVectorID.OverflowList);
 		}
 
-		private void MoveItemsToPrimaryList(IList<int> indexes)
+		internal void MoveItemsToPrimaryList(IList<int> indexes)
 		{
 			MoveItemsToList(indexes, NavigationViewSplitVectorID.PrimaryList);
 		}
@@ -156,7 +156,7 @@ namespace Microsoft.UI.Xaml.Controls
 			return GetPrimaryItems().Count;
 		}
 
-		private int GetNavigationViewItemCountInPrimaryList()
+		internal int GetNavigationViewItemCountInPrimaryList()
 		{
 			int count = 0;
 			for (int i = 0; i < Size(); i++)
@@ -169,7 +169,7 @@ namespace Microsoft.UI.Xaml.Controls
 			return count;
 		}
 
-		private int GetNavigationViewItemCountInTopNav()
+		internal int GetNavigationViewItemCountInTopNav()
 		{
 			int count = 0;
 			for (int i = 0; i < Size(); i++)
@@ -206,7 +206,7 @@ namespace Microsoft.UI.Xaml.Controls
 			return Math.Max(0.0, width);
 		}
 
-		private bool HasInvalidWidth(IList<int> items)
+		internal bool HasInvalidWidth(IList<int> items)
 		{
 			bool hasInvalidWidth = false;
 			foreach (var index in items)
@@ -230,7 +230,7 @@ namespace Microsoft.UI.Xaml.Controls
 			return width;
 		}
 
-		private double CalculateWidthForItems(List<int> items)
+		internal double CalculateWidthForItems(IList<int> items)
 		{
 			double width = 0.0;
 			foreach (var index in items)
@@ -240,7 +240,7 @@ namespace Microsoft.UI.Xaml.Controls
 			return width;
 		}
 
-		private void InvalidWidthCache()
+		internal void InvalidWidthCache()
 		{
 			ResetAttachedData(-1.0f);
 		}
@@ -304,7 +304,7 @@ namespace Microsoft.UI.Xaml.Controls
 			return (width >= 0) && (width < double.MaxValue);
 		}
 
-		private bool IsValidWidthForItem(int index)
+		internal bool IsValidWidthForItem(int index)
 		{
 			var width = AttachedData(index);
 			return IsValidWidth(width);

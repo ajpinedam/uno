@@ -39,9 +39,12 @@ namespace Microsoft.UI.Xaml.Controls
 
 		internal IndexPath(IEnumerable<int> indices)
 		{
-			foreach (var index in indices)
+			if (indices != null)
 			{
-				m_path.Add(index);
+				foreach (var index in indices)
+				{
+					m_path.Add(index);
+				}
 			}
 		}
 

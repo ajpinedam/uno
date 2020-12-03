@@ -18,8 +18,11 @@ namespace Microsoft.UI.Xaml.Controls
 		/// <summary>
 		/// Gets the visibility of the back button.
 		/// </summary>
-		public Visibility BackButtonVisibility =>
-			(Visibility)GetValue(BackButtonVisibilityProperty);
+		public Visibility BackButtonVisibility
+		{
+			get => (Visibility)GetValue(BackButtonVisibilityProperty);
+			internal set => SetValue(BackButtonVisibilityProperty, value);
+		}
 
 		/// <summary>
 		/// Identifies the BackButtonVisibility dependency property.
@@ -30,8 +33,11 @@ namespace Microsoft.UI.Xaml.Controls
 		/// <summary>
 		/// Gets the visibility of the left pane.
 		/// </summary>
-		public Visibility LeftPaneVisibility =>
-			(Visibility)GetValue(LeftPaneVisibilityProperty);
+		public Visibility LeftPaneVisibility
+		{
+			get => (Visibility)GetValue(LeftPaneVisibilityProperty);
+			internal set => SetValue(LeftPaneVisibilityProperty, value);
+		}
 
 		/// <summary>
 		/// Identifies the LeftPaneVisibility dependency property.
@@ -42,8 +48,11 @@ namespace Microsoft.UI.Xaml.Controls
 		/// <summary>
 		/// Gets the visibility of the overflow button.
 		/// </summary>
-		public Visibility OverflowButtonVisibility =>
-			(Visibility)GetValue(OverflowButtonVisibilityProperty);
+		public Visibility OverflowButtonVisibility
+		{
+			get => (Visibility)GetValue(OverflowButtonVisibilityProperty);
+			internal set => SetValue(OverflowButtonVisibilityProperty, value);
+		}
 
 		/// <summary>
 		/// Identifies the OverflowButtonVisibility dependency property.
@@ -54,8 +63,11 @@ namespace Microsoft.UI.Xaml.Controls
 		/// <summary>
 		/// Gets the visibility of the pane toggle button.
 		/// </summary>
-		public Visibility PaneToggleButtonVisibility =>
-			(Visibility)GetValue(PaneToggleButtonVisibilityProperty);
+		public Visibility PaneToggleButtonVisibility
+		{
+			get => (Visibility)GetValue(PaneToggleButtonVisibilityProperty);
+			internal set => SetValue(PaneToggleButtonVisibilityProperty, value);
+		}
 
 		/// <summary>
 		/// Identifies the PaneToggleButtonVisibility dependency property.
@@ -66,8 +78,11 @@ namespace Microsoft.UI.Xaml.Controls
 		/// <summary>
 		/// Gets the SelectionFollowsFocus value.
 		/// </summary>
-		public bool SingleSelectionFollowsFocus =>
-			(bool)GetValue(SingleSelectionFollowsFocusProperty);
+		public bool SingleSelectionFollowsFocus
+		{
+			get => (bool)GetValue(SingleSelectionFollowsFocusProperty);
+			internal set => SetValue(SingleSelectionFollowsFocusProperty, value);
+		}
 
 		/// <summary>
 		/// Identifies the SingleSelectionFollowsFocus dependency property.
@@ -78,8 +93,11 @@ namespace Microsoft.UI.Xaml.Controls
 		/// <summary>
 		/// Gets the padding value of the top pane.
 		/// </summary>
-		public double TopPadding =>
-			(double)GetValue(TopPaddingProperty);
+		public double TopPadding
+		{
+			get => (double)GetValue(TopPaddingProperty);
+			internal set => SetValue(TopPaddingProperty, value);
+		}
 
 		/// <summary>
 		/// Identifies the TopPadding dependency property.
@@ -90,8 +108,11 @@ namespace Microsoft.UI.Xaml.Controls
 		/// <summary>
 		/// Gets the visibility of the top pane.
 		/// </summary>
-		public Visibility TopPaneVisibility =>
-			(Visibility)GetValue(TopPaneVisibilityProperty);
+		public Visibility TopPaneVisibility
+		{
+			get => (Visibility)GetValue(TopPaneVisibilityProperty);
+			internal set => SetValue(TopPaneVisibilityProperty, value);
+		}
 
 		/// <summary>
 		/// Identifies the TopPaneVisibility dependency property.

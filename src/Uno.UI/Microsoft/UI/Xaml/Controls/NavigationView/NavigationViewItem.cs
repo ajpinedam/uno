@@ -572,7 +572,7 @@ namespace Microsoft.UI.Xaml.Controls
 			return presenter;
 		}
 
-		void ShowHideChildren()
+		internal void ShowHideChildren()
 		{
 			var repeater = m_repeater; if (repeater != null)
 			{
@@ -592,13 +592,8 @@ namespace Microsoft.UI.Xaml.Controls
 
 						// There seems to be a race condition happening which sometimes
 						// prevents the opening of the flyout. Queue callback as a workaround.
-						SharedHelpers.QueueCallbackForCompositionRendering(
-
-
-							[strongThis = get_strong()]()
-
-
-				{
+						SharedHelpers.QueueCallbackForCompositionRendering(() =>
+						{
 							FlyoutBase.ShowAttachedFlyout(m_rootGrid);
 						});
 					}
@@ -633,7 +628,7 @@ namespace Microsoft.UI.Xaml.Controls
 					else if (!ShouldRepeaterShowInFlyout() && m_isRepeaterParentedToFlyout)
 					{
 						m_flyoutContentGrid.Children.RemoveAtEnd();
-						m_rootGrid.Children.Append(repeater);
+						m_rootGrid.Children.Add(repeater);
 						m_isRepeaterParentedToFlyout = false;
 
 						PropagateDepthToChildren(1);
@@ -647,7 +642,7 @@ namespace Microsoft.UI.Xaml.Controls
 			return (m_isClosedCompact && IsTopLevelItem) || IsOnTopPrimary();
 		}
 
-		private bool IsRepeaterVisible()
+		internal bool IsRepeaterVisible()
 		{
 			var repeater = m_repeater; if (repeater != null)
 			{

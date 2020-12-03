@@ -48,7 +48,7 @@ namespace Microsoft.UI.Xaml.Controls
 			return splitView;
 		}
 
-		private void SetNavigationViewParent(NavigationView navigationView)
+		internal void SetNavigationViewParent(NavigationView navigationView)
 		{
 			m_navigationView = navigationView;
 		}
