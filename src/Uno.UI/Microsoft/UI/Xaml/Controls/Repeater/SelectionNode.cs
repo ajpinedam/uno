@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
 using System.Collections.Specialized;
+using System.Diagnostics;
 using Windows.Foundation;
 using static Microsoft.UI.Xaml.Controls._Tracing;
 
@@ -20,7 +21,7 @@ namespace Microsoft.UI.Xaml.Controls
 		//			UnhookCollectionChangedHandler();
 		//		}
 
-		private object Source
+		internal object Source
 		{
 			get => m_source;
 			set
@@ -49,111 +50,108 @@ namespace Microsoft.UI.Xaml.Controls
 
 		private ItemsSourceView ItemsSourceView => m_dataSource;
 
-		private int DataCount => m_dataSource == null ? 0 : m_dataSource.Count;
+		internal int DataCount => m_dataSource == null ? 0 : m_dataSource.Count;
 
 		private int ChildrenNodeCount => (int)(m_childrenNodes.Count);
 
 		private int RealizedChildrenNodeCount() => m_realizedChildrenNodeCount;
 
-		private int AnchorIndex { get; set; }
+		internal int AnchorIndex { get; set; }
 
 		private IndexPath IndexPath
 		{
 			get
 			{
-				std.CalculatorList<int> path;
-				//			var parent = m_parent;
-				//			var child = this;
-				//			while (parent != null)
-				//			{
-				//				var childNodes = parent.m_childrenNodes;
-				//				var it = std.find_if(childNodes.cbegin(), childNodes.cend(), [&child](var item) { return item == child; });
-				//				var index = (int)(distance(childNodes.cbegin(), it));
-				//				Debug.Assert(index >= 0);
-				//				// we are walking up to the parent, so the path will be backwards
-				//				path.insert(path.begin(), index);
-				//				child = parent;
-				//				parent = parent.m_parent;
-				//			}
+				List<int> path = new List<int>();
+				var parent = m_parent;
+				var child = this;
+				while (parent != null)
+				{
+					var childNodes = parent.m_childrenNodes;
+					var it = std.find_if(childNodes.cbegin(), childNodes.cend(), [&child](var item) { return item == child; });
+					var index = (int)(distance(childNodes.cbegin(), it));
+					Debug.Assert(index >= 0);
+					// we are walking up to the parent, so the path will be backwards
+					path.insert(path.begin(), index);
+					child = parent;
+					parent = parent.m_parent;
+				}
 
-				//			return new IndexPath(path);
+				return new IndexPath(path);
 			}
 		}
-		//		{
-		//			
-		//		}
 
-		//		// For a genuine tree view, we dont know which node is leaf until we 
-		//		// actually walk to it, so currently the tree builds up to the leaf. I don't 
-		//		// create a bunch of leaf node instances - instead i use the same instance m_leafNode to avoid 
-		//		// an explosion of node objects. However, I'm still creating the m_childrenNodes 
-		//		// collection unfortunately.
-		//		std.SelectionNode GetAt(int index, bool realizeChild)
-		//		{
-		//			std.SelectionNode child = null;
-		//			if (realizeChild)
-		//			{
-		//				if (m_childrenNodes.size() == 0)
-		//				{
-		//					if (m_dataSource != null)
-		//					{
-		//						for (int i = 0; i < m_dataSource.Count(); i++)
-		//						{
-		//							m_childrenNodes.emplace_back(null);
-		//						}
-		//					}
-		//				}
+		// For a genuine tree view, we dont know which node is leaf until we 
+		// actually walk to it, so currently the tree builds up to the leaf. I don't 
+		// create a bunch of leaf node instances - instead i use the same instance m_leafNode to avoid 
+		// an explosion of node objects. However, I'm still creating the m_childrenNodes 
+		// collection unfortunately.
+		internal SelectionNode GetAt(int index, bool realizeChild)
+		{
+			SelectionNode child = null;
+			if (realizeChild)
+			{
+				if (m_childrenNodes.Count == 0)
+				{
+					if (m_dataSource != null)
+					{
+						for (int i = 0; i < m_dataSource.Count; i++)
+						{
+							m_childrenNodes.Add(null);
+						}
+					}
+				}
 
-		//				MUX_ASSERT(0 <= index && index <= (int)(m_childrenNodes.size()));
+				MUX_ASSERT(0 <= index && index <= (int)(m_childrenNodes.Count));
 
-		//				if (m_childrenNodes.at(index) == null)
-		//				{
-		//					var childData = m_dataSource.GetAt(index);
-		//					if (childData != null)
-		//					{
-		//						var childDataIndexPath = get_self <class IndexPath>(IndexPath()).CloneWithChildIndex(index);
-		//		var resolvedChild = m_manager.ResolvePath(childData, childDataIndexPath);
-		//                if (resolvedChild != null)
-		//                {
-		//                    child = std.new SelectionNode(m_manager, this /* parent */);
-		//		child.Source(resolvedChild);
-		//                }
-		//                else
-		//                {
-		//                    child = m_manager.SharedLeafNode();
-		//                }
-		//            }
+				if (m_childrenNodes[index] == null)
+				{
+					var childData = m_dataSource.GetAt(index);
+					if (childData != null)
+					{
+						var childDataIndexPath = IndexPath.CloneWithChildIndex(index);
+						var resolvedChild = m_manager.ResolvePath(childData, childDataIndexPath);
+						if (resolvedChild != null)
+						{
+							child = new SelectionNode(m_manager, this /* parent */);
+							child.Source = resolvedChild;
+						}
+						else
+						{
+							child = m_manager.SharedLeafNode;
+						}
+					}
 
-		//			else
-		//{
-		//	child = m_manager.SharedLeafNode();
-		//}
+					else
+					{
+						child = m_manager.SharedLeafNode();
+					}
 
-		//m_childrenNodes[index] = child;
-		//m_realizedChildrenNodeCount++;
-		//        }
+					m_childrenNodes[index] = child;
+					m_realizedChildrenNodeCount++;
+				}
 
-		//		else
-		//{
-		//	child = m_childrenNodes[index];
-		//}
-		//    }
+				else
+				{
+					child = m_childrenNodes[index];
+				}
+			}
 
-		//	else
-		//{
-		//	if (m_childrenNodes.size() > 0)
-		//	{
-		//		MUX_ASSERT(0 <= index && index <= (int)(m_childrenNodes.size()));
-		//		child = m_childrenNodes[index];
-		//	}
-		//}
+			else
+			{
+				if (m_childrenNodes.Count > 0)
+				{
+					MUX_ASSERT(0 <= index && index <= (int)(m_childrenNodes.Count));
+					child = m_childrenNodes[index];
+				}
+			}
 
-		//return child;
-		//}
+			return child;
+		}
 
-		private int SelectedCount => m_selectedCount;
+		internal int SelectedCount => m_selectedCount;
 
-		private bool IsSelected(int index)
+		internal bool IsSelected(int index)
 		{
 			bool isSelected = false;
 			foreach (var range in m_selected)
@@ -171,7 +169,7 @@ namespace Microsoft.UI.Xaml.Controls
 		// True  . Selected
 		// False . Not Selected
 		// Null  . Some descendents are selected and some are not
-		private bool? IsSelectedWithPartial()
+		internal bool? IsSelectedWithPartial()
 		{
 			bool? isSelected = (bool?)PropertyValue.CreateBoolean(false);
 			if (m_parent != null)
@@ -191,7 +189,7 @@ namespace Microsoft.UI.Xaml.Controls
 		// True  . Selected
 		// False . Not Selected
 		// Null  . Some descendents are selected and some are not
-		private bool? IsSelectedWithPartial(int index)
+		internal bool? IsSelectedWithPartial(int index)
 		{
 			SelectionState selectionState = SelectionState.NotSelected;
 			MUX_ASSERT(index >= 0);
@@ -257,7 +255,7 @@ namespace Microsoft.UI.Xaml.Controls
 			return m_selectedIndicesCached;
 		}
 
-		private bool Select(int index, bool select)
+		internal bool Select(int index, bool select)
 		{
 			return Select(index, select, true /* raiseOnSelectionChanged */);
 		}
@@ -267,7 +265,7 @@ namespace Microsoft.UI.Xaml.Controls
 			return Select(index, !IsSelected(index));
 		}
 
-		private void SelectAll()
+		internal void SelectAll()
 		{
 			if (m_dataSource != null)
 			{
@@ -279,12 +277,12 @@ namespace Microsoft.UI.Xaml.Controls
 			}
 		}
 
-		private void Clear()
+		internal void Clear()
 		{
 			ClearSelection();
 		}
 
-		private bool SelectRange(IndexRange range, bool select)
+		internal bool SelectRange(IndexRange range, bool select)
 		{
 			if (IsValidIndex(range.Begin) && IsValidIndex(range.End))
 			{
@@ -410,7 +408,7 @@ namespace Microsoft.UI.Xaml.Controls
 				{
 					// Remove tagged ranges
 					foreach (IndexRange remove in toRemove)
-					{						
+					{
 						m_selected.Remove(remove);
 					}
 
@@ -667,7 +665,7 @@ namespace Microsoft.UI.Xaml.Controls
 					var isSelected = parent.IsSelectedWithPartial();
 					// If a parent is partially selected, then it will become selected.
 					// If it is selected or not selected - there is no change.
-					if (!isSelected)
+					if (isSelected != true)
 					{
 						selectionInvalidated = true;
 						break;
@@ -687,7 +685,7 @@ namespace Microsoft.UI.Xaml.Controls
 		}
 
 		///* static */
-		private static bool? ConvertToNullableBool(SelectionState isSelected)
+		internal static bool? ConvertToNullableBool(SelectionState isSelected)
 		{
 			bool? result = null; // PartialySelected
 			if (isSelected == SelectionState.Selected)
@@ -702,7 +700,7 @@ namespace Microsoft.UI.Xaml.Controls
 			return result;
 		}
 
-		private SelectionState EvaluateIsSelectedBasedOnChildrenNodes()
+		internal SelectionState EvaluateIsSelectedBasedOnChildrenNodes()
 		{
 			SelectionState selectionState = SelectionState.NotSelected;
 			int realizedChildrenNodeCount = RealizedChildrenNodeCount();

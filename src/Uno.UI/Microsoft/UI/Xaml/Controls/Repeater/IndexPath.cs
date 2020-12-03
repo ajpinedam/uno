@@ -1,11 +1,12 @@
-﻿using System;
+﻿//MUX Reference IndexPath.cpp, commit de78834
+
+using System;
 using System.Collections.Generic;
-using System.Linq;
 using Windows.Foundation;
 
 namespace Microsoft.UI.Xaml.Controls
 {
-	public class IndexPath : IStringable
+	public sealed class IndexPath : IStringable
 	{
 		private readonly List<int> m_path = new List<int>();
 
@@ -15,18 +16,18 @@ namespace Microsoft.UI.Xaml.Controls
 
 		public static IndexPath CreateFromIndices(IList<int> indices) => new IndexPath(indices);
 
-		private IndexPath(int index)
+		internal IndexPath(int index)
 		{
 			m_path.Add(index);
 		}
 
-		private IndexPath(int groupIndex, int itemIndex)
+		internal IndexPath(int groupIndex, int itemIndex)
 		{
 			m_path.Add(groupIndex);
 			m_path.Add(itemIndex);
 		}
 
-		private IndexPath(IList<int> indices)
+		internal IndexPath(IList<int> indices)
 		{
 			if (indices != null)
 			{
@@ -37,20 +38,9 @@ namespace Microsoft.UI.Xaml.Controls
 			}
 		}
 
-		internal IndexPath(IEnumerable<int> indices)
-		{
-			if (indices != null)
-			{
-				foreach (var index in indices)
-				{
-					m_path.Add(index);
-				}
-			}
-		}
-
 		public int GetSize()
 		{
-			return (int)(m_path.Count);
+			return m_path.Count;
 		}
 
 		public int GetAt(int index)
@@ -62,8 +52,8 @@ namespace Microsoft.UI.Xaml.Controls
 		{
 			var rhsPath = other;
 			int compareResult = 0;
-			int lhsCount = (int)(m_path.Count);
-			int rhsCount = (int)(rhsPath.m_path.Count);
+			int lhsCount = m_path.Count;
+			int rhsCount = rhsPath.m_path.Count;
 
 			if (lhsCount == 0 || rhsCount == 0)
 			{
@@ -114,7 +104,7 @@ namespace Microsoft.UI.Xaml.Controls
 		internal bool IsValid()
 		{
 			bool isValid = true;
-			for (int i = 0; i < (int)(m_path.Count); i++)
+			for (int i = 0; i < m_path.Count; i++)
 			{
 				if (m_path[i] < 0)
 				{
@@ -128,7 +118,9 @@ namespace Microsoft.UI.Xaml.Controls
 
 		internal IndexPath CloneWithChildIndex(int childIndex)
 		{			
-			return new IndexPath(m_path.Append(childIndex));
+			var newPath = new IndexPath(m_path);
+			newPath.m_path.Add(childIndex);
+			return newPath;
 		}
 	}
 }

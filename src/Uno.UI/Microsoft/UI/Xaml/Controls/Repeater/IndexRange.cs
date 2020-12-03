@@ -1,7 +1,10 @@
-﻿using static Microsoft.UI.Xaml.Controls._Tracing;
+﻿//MUX reference IndexRange.cpp, commit de78834
+
+using static Microsoft.UI.Xaml.Controls._Tracing;
 
 namespace Microsoft.UI.Xaml.Controls
 {
+	// Struct in WinUI
 	internal class IndexRange
 	{
 		// Invariant: m_end >= m_begin
@@ -61,7 +64,7 @@ namespace Microsoft.UI.Xaml.Controls
 
 		internal bool Intersects(IndexRange other)
 		{
-			return ((m_begin <= other.End) && (m_end >= other.Begin));
+			return (m_begin <= other.End) && (m_end >= other.Begin);
 		}
 
 		public static bool operator ==(IndexRange lhs, IndexRange rhs)

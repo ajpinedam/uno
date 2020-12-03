@@ -1,8 +1,15 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 
 namespace Microsoft.UI.Xaml.Controls
 {
+	internal struct SelectedItemInfo
+	{
+		internal WeakReference<SelectionNode> Node;
+		internal IndexPath Path;
+	}
+
 	public partial class SelectionModel
     {
 		private SelectionNode m_rootNode = null;
@@ -11,11 +18,9 @@ namespace Microsoft.UI.Xaml.Controls
 		IList<IndexPath> m_selectedIndicesCached = null;
 		IList<object> m_selectedItemsCached = null;
 
-		internal event PropertyChangedEventHandler PropertyChanged;
-
 		// Cached Event args to avoid creation cost every time
-		private SelectionModelChildrenRequestedEventArgs m_childrenRequestedEventArgs = new SelectionModelChildrenRequestedEventArgs();
-		private SelectionModelSelectionChangedEventArgs m_selectionChangedEventArgs = new SelectionModelSelectionChangedEventArgs();
+		private SelectionModelChildrenRequestedEventArgs m_childrenRequestedEventArgs;
+		private SelectionModelSelectionChangedEventArgs m_selectionChangedEventArgs;
 
 		// use just one instance of a leaf node to avoid creating a bunch of these.
 		private SelectionNode m_leafNode;

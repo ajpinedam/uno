@@ -23,9 +23,9 @@ namespace Microsoft.UI.Xaml.Controls
 				ParentNode = null;
 			}
 
-			SelectionNode Node;
-			IndexPath Path;
-			SelectionNode ParentNode;
+			internal SelectionNode Node;
+			internal IndexPath Path;
+			internal SelectionNode ParentNode;
 		}
 
 		internal static void TraverseIndexPath(

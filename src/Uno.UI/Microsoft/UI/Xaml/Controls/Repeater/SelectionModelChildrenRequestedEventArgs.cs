@@ -4,11 +4,11 @@ namespace Microsoft.UI.Xaml.Controls
 {
 	public class SelectionModelChildrenRequestedEventArgs
 	{
-		object m_source;
-		IndexPath m_sourceIndexPath;
+		private object m_source;
+		private IndexPath m_sourceIndexPath;
 		// This flag allows for the re-use of a SelectionModelChildrenRequestedEventArgs object.
 		// We do not want someone to cache the args object and access its properties later on, so we use this flag to only allow property access in the ChildrenRequested event handler.
-		bool m_throwOnAccess = true;
+		private bool m_throwOnAccess = true;
 
 		internal SelectionModelChildrenRequestedEventArgs(object source, IndexPath sourceIndexPath, bool throwOnAccess)
 		{
@@ -47,7 +47,7 @@ namespace Microsoft.UI.Xaml.Controls
 
 		#endregion
 
-		private void Initialize(object source, IndexPath sourceIndexPath, bool throwOnAccess)
+		internal void Initialize(object source, IndexPath sourceIndexPath, bool throwOnAccess)
 		{
 			m_source = source;
 			m_sourceIndexPath = sourceIndexPath;
