@@ -18,7 +18,7 @@ namespace Microsoft.UI.Xaml.Controls
 			}
 		}
 
-		private NavigationView GetNavigationView()
+		internal NavigationView GetNavigationView()
 		{
 			return m_navigationView;
 		}

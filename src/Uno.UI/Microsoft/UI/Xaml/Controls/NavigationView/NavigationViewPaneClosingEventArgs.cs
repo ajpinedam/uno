@@ -1,4 +1,6 @@
-﻿using Windows.UI.Xaml.Controls;
+﻿// MUX reference NavigationViewPaneClosingEventArgs.cpp, commit d883cf3
+
+using Windows.UI.Xaml.Controls;
 
 namespace Microsoft.UI.Xaml.Controls
 {

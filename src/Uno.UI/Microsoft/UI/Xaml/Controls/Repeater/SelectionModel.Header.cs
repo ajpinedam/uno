@@ -15,8 +15,8 @@ namespace Microsoft.UI.Xaml.Controls
 		private SelectionNode m_rootNode = null;
 		private bool m_singleSelect = false;
 
-		IList<IndexPath> m_selectedIndicesCached = null;
-		IList<object> m_selectedItemsCached = null;
+		IReadOnlyList<IndexPath> m_selectedIndicesCached = null;
+		IReadOnlyList<object> m_selectedItemsCached = null;
 
 		// Cached Event args to avoid creation cost every time
 		private SelectionModelChildrenRequestedEventArgs m_childrenRequestedEventArgs;

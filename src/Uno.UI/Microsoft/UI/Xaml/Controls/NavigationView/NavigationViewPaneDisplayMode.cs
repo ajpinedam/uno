@@ -1,4 +1,6 @@
-﻿namespace Microsoft.UI.Xaml.Controls
+﻿// MUX Reference NavigationView.idl, commit 52e7fc4
+
+namespace Microsoft.UI.Xaml.Controls
 {
 	/// <summary>
 	/// Defines constants that specify how and where the NavigationView pane is shown.

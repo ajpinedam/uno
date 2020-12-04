@@ -48,7 +48,7 @@ namespace Microsoft.UI.Xaml.Controls
 			}
 		}
 
-		private ItemsSourceView ItemsSourceView => m_dataSource;
+		internal ItemsSourceView ItemsSourceView => m_dataSource;
 
 		internal int DataCount => m_dataSource == null ? 0 : m_dataSource.Count;
 
@@ -196,7 +196,7 @@ namespace Microsoft.UI.Xaml.Controls
 
 			if (m_childrenNodes.Count == 0 || // no nodes realized
 				(int)(m_childrenNodes.Count) <= index || // target node is not realized 
-				!m_childrenNodes[index] || // target node is not realized
+				m_childrenNodes[index] == null || // target node is not realized
 				m_childrenNodes[index] == m_manager.SharedLeafNode())  // target node is a leaf node.
 			{
 				// Ask parent if the target node is selected.
@@ -216,7 +216,7 @@ namespace Microsoft.UI.Xaml.Controls
 
 		private int SelectedIndex
 		{
-			get => SelectedCount > 0 ? SelectedIndices()[0] : -1;
+			get => SelectedCount > 0 ? SelectedIndices[0] : -1;
 			set
 			{
 				if (IsValidIndex(value) && (SelectedCount != 1 || !IsSelected(value)))
@@ -231,28 +231,31 @@ namespace Microsoft.UI.Xaml.Controls
 			}
 		}
 
-		private IList<int> SelectedIndices()
+		internal IList<int> SelectedIndices
 		{
-			if (!m_selectedIndicesCacheIsValid)
+			get
 			{
-				m_selectedIndicesCacheIsValid = true;
-				foreach (var range in m_selected)
+				if (!m_selectedIndicesCacheIsValid)
 				{
-					for (int index = range.Begin; index <= range.End; index++)
+					m_selectedIndicesCacheIsValid = true;
+					foreach (var range in m_selected)
 					{
-						// Avoid duplicates
-						if (m_selectedIndicesCached.IndexOf(index) == -1)
+						for (int index = range.Begin; index <= range.End; index++)
 						{
-							m_selectedIndicesCached.Add(index);
+							// Avoid duplicates
+							if (m_selectedIndicesCached.IndexOf(index) == -1)
+							{
+								m_selectedIndicesCached.Add(index);
+							}
 						}
 					}
+
+					// Sort the list for easy consumption
+					m_selectedIndicesCached.Sort();
 				}
 
-				// Sort the list for easy consumption
-				m_selectedIndicesCached.Sort();
+				return m_selectedIndicesCached;
 			}
-
-			return m_selectedIndicesCached;
 		}
 
 		internal bool Select(int index, bool select)
@@ -632,7 +635,7 @@ namespace Microsoft.UI.Xaml.Controls
 					selectionInvalidated = true;
 					for (int i = 0; i < count; i++)
 					{
-						if (m_childrenNodes[index])
+						if (m_childrenNodes[index] != null)
 						{
 							m_realizedChildrenNodeCount--;
 						}

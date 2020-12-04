@@ -121,7 +121,7 @@ namespace Microsoft.UI.Xaml.Automation.Peers
 			if (nvib != null)
 			{
 				var nvibImpl = nvib;
-				if (nvibImpl.IsTopLevelItem())
+				if (nvibImpl.IsTopLevelItem)
 				{
 					return 1;
 				}

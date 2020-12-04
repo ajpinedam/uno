@@ -1,4 +1,6 @@
-﻿using Windows.UI.Xaml.Media.Animation;
+﻿// MUX reference NavigationViewSelectionChangedEventArgs.cpp, commit d883cf3
+
+using Windows.UI.Xaml.Media.Animation;
 
 namespace Microsoft.UI.Xaml.Controls
 {

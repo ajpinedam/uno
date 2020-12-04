@@ -504,7 +504,7 @@ namespace Microsoft.UI.Xaml.Controls
 			UpdateVisualStateForChevron();
 		}
 
-		void UpdateVisualStateForChevron()
+		private void UpdateVisualStateForChevron()
 		{
 			var presenter = m_navigationViewItemPresenter;
 			if (presenter != null)
@@ -514,7 +514,7 @@ namespace Microsoft.UI.Xaml.Controls
 			}
 		}
 
-		bool HasChildren()
+		internal bool HasChildren()
 		{
 			return MenuItems.Count > 0
 				|| (MenuItemsSource != null && m_repeater != null && m_repeater.ItemsSourceView.Count > 0)

@@ -1045,12 +1045,12 @@ namespace Microsoft.UI.Xaml.Controls
 			RaiseItemInvoked(nextItem, IsSettingsItem(nvi) /*isSettings*/, nvi, recommendedDirection);
 		}
 
-		private void OnNavigationViewItemInvoked(NavigationViewItem nvi)
+		internal void OnNavigationViewItemInvoked(NavigationViewItem nvi)
 		{
 			m_shouldRaiseItemInvokedAfterSelection = true;
 
 			var selectedItem = SelectedItem;
-			bool updateSelection = m_selectionModel && nvi.SelectsOnInvoked;
+			bool updateSelection = m_selectionModel != null && nvi.SelectsOnInvoked;
 			if (updateSelection)
 			{
 				var ip = GetIndexPathForContainer(nvi);
@@ -1112,7 +1112,7 @@ namespace Microsoft.UI.Xaml.Controls
 			return parentIR;
 		}
 
-		private ItemsRepeater GetParentItemsRepeaterForContainer(NavigationViewItemBase nvib)
+		internal ItemsRepeater GetParentItemsRepeaterForContainer(NavigationViewItemBase nvib)
 		{
 			var parent = VisualTreeHelper.GetParent(nvib);
 			if (parent != null)
@@ -1145,7 +1145,7 @@ namespace Microsoft.UI.Xaml.Controls
 			return null;
 		}
 
-		private IndexPath GetIndexPathForContainer(NavigationViewItemBase nvib)
+		internal IndexPath GetIndexPathForContainer(NavigationViewItemBase nvib)
 		{
 			var path = new List<int>();
 			bool isInFooterMenu = false;
@@ -2959,7 +2959,7 @@ namespace Microsoft.UI.Xaml.Controls
 			}
 		}
 
-		private void OnSettingsInvoked()
+		internal void OnSettingsInvoked()
 		{
 			var settingsItem = m_settingsItem;
 			if (settingsItem != null)
@@ -3186,12 +3186,12 @@ namespace Microsoft.UI.Xaml.Controls
 			m_lastSelectedItemPendingAnimationInTopNav = null;
 		}
 
-		private int GetNavigationViewItemCountInPrimaryList()
+		internal int GetNavigationViewItemCountInPrimaryList()
 		{
 			return m_topDataProvider.GetNavigationViewItemCountInPrimaryList();
 		}
 
-		private int GetNavigationViewItemCountInTopNav()
+		internal int GetNavigationViewItemCountInTopNav()
 		{
 			return m_topDataProvider.GetNavigationViewItemCountInTopNav();
 		}
@@ -5432,12 +5432,12 @@ namespace Microsoft.UI.Xaml.Controls
 			return null;
 		}
 
-		private void Expand(NavigationViewItem item)
+		internal void Expand(NavigationViewItem item)
 		{
 			ChangeIsExpandedNavigationViewItem(item, true /*isExpanded*/);
 		}
 
-		private void Collapse(NavigationViewItem item)
+		internal void Collapse(NavigationViewItem item)
 		{
 			ChangeIsExpandedNavigationViewItem(item, false /*isExpanded*/);
 		}

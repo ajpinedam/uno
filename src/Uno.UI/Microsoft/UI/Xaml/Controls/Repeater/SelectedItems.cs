@@ -1,137 +1,103 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections;
+using System.Collections.Generic;
 
 namespace Microsoft.UI.Xaml.Controls
 {
-	internal class SelectedItems<T> : IEnumerable<T>
+	internal class SelectedItems<T> : IReadOnlyList<T>
 	{
-    public SelectedItems(std::vector<SelectedItemInfo>& infos,
-		std::function<T(const std::vector<SelectedItemInfo>& infos, unsigned int index)> getAtImpl)
-    {
-        m_infos = infos;
-        m_getAtImpl = getAtImpl;
-        for (auto& info: infos)
-        {
-            if (auto node = info.Node.lock())
-            {
-                m_totalCount += node->SelectedCount();
-	}
-
-			else
-{
-	throw winrt::hresult_error(E_FAIL, L"Selection changed after the SelectedIndices/Items property was read.");
-}
-        }
-    }
-
-    ~SelectedItems()
-
-	{
-	m_infos.clear();
-}
-
-#pragma region IVectorView<T>
-uint32_t Size()
-{
-	return m_totalCount;
-}
-
-T GetAt(uint32_t index)
-{
-	return m_getAtImpl(m_infos, index);
-}
-
-bool IndexOf(T const& value, uint32_t &index) noexcept
-{
-	winrt::throw_hresult(E_NOTIMPL);
-}
-
-uint32_t GetMany(uint32_t startIndex, winrt::array_view<T> const& values) noexcept
-{
-	winrt::throw_hresult(E_NOTIMPL);
-}
-
-#pragma endregion
-
-#pragma region winrt::IIterable<T>
-winrt::IIterator<T> First()
-{
-	return winrt::make<SelectedItems<T>::Iterator>(*this);
-}
-#pragma endregion
-
-private:
-    class Iterator :
-
-		public ReferenceTracker<Iterator, reference_tracker_implements_t<winrt::IIterator<T>>::type>
-{
-
-	public:
-        Iterator(const winrt::IVectorView<T>& selectedItems)
-        {
-	m_selectedItems = selectedItems;
-}
-
-~Iterator()
-
+		public SelectedItems(
+			IList<SelectedItemInfo> infos,
+			Func<IList<SelectedItemInfo>, int, T> getAtImpl)
 		{
+			m_infos = infos;
+			m_getAtImpl = getAtImpl;
+			foreach (var info in infos)
+			{
+				if (info.Node.TryGetTarget(out var node))
+				{
+					m_totalCount += node.SelectedCount;
+				}
+				else
+				{
+					throw new InvalidOperationException("Selection changed after the SelectedIndices/Items property was read.");
+				}
+			}
+		}
 
-}
-
-T Current()
-{
-	auto items = m_selectedItems;
-	if (m_currentIndex < items.Size())
-	{
-		return items.GetAt(m_currentIndex);
-	}
-	else
-	{
-		throw winrt::hresult_out_of_bounds();
-	}
-}
-
-bool HasCurrent()
-{
-	return (m_currentIndex < m_selectedItems.Size());
-}
-
-bool MoveNext()
-{
-	if (m_currentIndex < m_selectedItems.Size())
-	{
-		++m_currentIndex;
-		return (m_currentIndex < m_selectedItems.Size());
-	}
-	else
-	{
-		throw winrt::hresult_out_of_bounds();
-	}
-}
-
-uint32_t GetMany(winrt::array_view<T> values)
-{
-	uint32_t howMany = 0;
-	if (HasCurrent())
-	{
-		do
+		~SelectedItems()
 		{
-			if (howMany >= values.size()) break;
+			m_infos.Clear();
+		}
 
-			values[howMany] = Current();
-			howMany++;
-		} while (MoveNext());
+		#region IVectorView<T>
+
+		public int Count => m_totalCount;
+
+		public T this[int index] => m_getAtImpl(m_infos, index);
+
+		#endregion
+
+		#region winrt::IIterable<T>
+
+		//TODO: Verify IEnumerator implementation
+
+		public IEnumerator<T> GetEnumerator() => new SelectedItemsEnumerator(this);
+
+		IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+
+		private class SelectedItemsEnumerator : IEnumerator<T>
+		{
+			private readonly IReadOnlyList<T> m_selectedItems = null;
+			private int m_currentIndex = 0;
+
+			public SelectedItemsEnumerator(IReadOnlyList<T> selectedItems)
+			{
+				m_selectedItems = selectedItems;
+			}
+
+			public T Current
+			{
+				get
+				{
+					var items = m_selectedItems;
+					if (m_currentIndex < items.Count)
+					{
+						return items[m_currentIndex];
+					}
+					else
+					{
+						throw new IndexOutOfRangeException();
+					}
+				}
+			}
+
+			object IEnumerator.Current => Current;
+
+			public void Dispose()
+			{
+			}
+
+			public bool MoveNext()
+			{
+				if (m_currentIndex < m_selectedItems.Count)
+				{
+					++m_currentIndex;
+					return (m_currentIndex < m_selectedItems.Count);
+				}
+				else
+				{
+					throw new IndexOutOfRangeException();
+				}
+			}
+
+			public void Reset() => m_currentIndex = 0;
+		}
+
+		#endregion
+
+		private IList<SelectedItemInfo> m_infos;
+		private Func<IList<SelectedItemInfo>, int, T> m_getAtImpl;
+		private int m_totalCount = 0;
 	}
-
-	return howMany;
-}
-
-private:
-        winrt::IVectorView<T> m_selectedItems { nullptr };
-unsigned int m_currentIndex = 0;
-    };
-
-std::vector<SelectedItemInfo> m_infos;
-unsigned int m_totalCount { 0 };
-std::function < T(const std::vector<SelectedItemInfo>& infos, int /*index*/)> m_getAtImpl;
-};
 }
