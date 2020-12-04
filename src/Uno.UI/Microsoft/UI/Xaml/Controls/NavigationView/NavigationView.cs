@@ -242,7 +242,7 @@ namespace Microsoft.UI.Xaml.Controls
 			}
 		}
 
-		void OnFooterItemsSourceCollectionChanged(object, object)
+		private void OnFooterItemsSourceCollectionChanged(object sender, object args)
 		{
 			UpdateFooterRepeaterItemsSource(false /*sourceCollectionReset*/, true /*sourceCollectionChanged*/);
 
@@ -250,9 +250,9 @@ namespace Microsoft.UI.Xaml.Controls
 			UpdatePaneLayout();
 		}
 
-		void OnOverflowItemsSourceCollectionChanged(object, object)
+		private void OnOverflowItemsSourceCollectionChanged(object sender, object args)
 		{
-			if (m_topNavRepeaterOverflowView.ItemsSourceView().Count() == 0)
+			if (m_topNavRepeaterOverflowView.ItemsSourceView.Count == 0)
 			{
 				SetOverflowButtonVisibility(Visibility.Collapsed);
 			}
@@ -280,7 +280,7 @@ namespace Microsoft.UI.Xaml.Controls
 			if (IsTopNavigationView())
 			{
 				// If selectedIndex does not exist, means item is being deselected through API
-				var isInOverflow = (selectedIndex && selectedIndex.GetSize() > 1)
+				var isInOverflow = (selectedIndex != null && selectedIndex.GetSize() > 1)
 					? selectedIndex.GetAt(0) == c_mainMenuBlockIndex && !m_topDataProvider.IsItemInPrimaryList(selectedIndex.GetAt(1))
 					: false;
 				if (isInOverflow)
@@ -515,7 +515,7 @@ namespace Microsoft.UI.Xaml.Controls
 				{
 					m_topNavOverflowButton = topNavOverflowButton;
 					AutomationProperties.SetName(topNavOverflowButton, ResourceAccessor.GetLocalizedStringResource(ResourceAccessor.SR_NavigationOverflowButtonName));
-					topNavOverflowButton.Content = ResourceAccessor.GetLocalizedStringResource(ResourceAccessor.SR_NavigationOverflowButtonText));
+					topNavOverflowButton.Content = ResourceAccessor.GetLocalizedStringResource(ResourceAccessor.SR_NavigationOverflowButtonText);
 					var visual = ElementCompositionPreview.GetElementVisual(topNavOverflowButton);
 					CreateAndAttachHeaderAnimation(visual);
 
@@ -862,7 +862,7 @@ namespace Microsoft.UI.Xaml.Controls
 					m_settingsItem = new NavigationViewItem();
 					var settingsItem = m_settingsItem;
 					settingsItem.Name("SettingsItem");
-					m_navigationViewItemsFactory.SettingsItem = settingsItem;
+					m_navigationViewItemsFactory.SettingsItem(settingsItem);
 				}
 
 				if (sourceCollectionReset)
@@ -874,7 +874,7 @@ namespace Microsoft.UI.Xaml.Controls
 				if (m_footerItemsSource == null)
 				{
 					m_footerItemsSource = new ItemsSourceView(itemsSource);
-					m_footerItemsCollectionChangedRevoker = m_footerItemsSource.CollectionChanged(auto_revoke, { this, &OnFooterItemsSourceCollectionChanged });
+					m_footerItemsCollectionChangedRevoker = m_footerItemsSource.CollectionChanged += OnFooterItemsSourceCollectionChanged;
 				}
 
 				if (m_footerItemsSource != null)
@@ -1162,7 +1162,7 @@ namespace Microsoft.UI.Xaml.Controls
 			{
 				if (parent is ItemsRepeater parentIR)
 				{
-					if (child as UIElement childElement)
+					if (child is UIElement childElement)
 		            {
 						path.insert(path.begin(), parentIR.GetElementIndex(childElement));
 					}
@@ -1186,7 +1186,7 @@ namespace Microsoft.UI.Xaml.Controls
 			if (parent == m_topNavRepeaterOverflowView)
 			{
 				// Convert index of selected item in overflow to index in datasource
-				var containerIndex = m_topNavRepeaterOverflowView.GetElementIndex(child as UIElement());
+				var containerIndex = m_topNavRepeaterOverflowView.GetElementIndex(child as UIElement);
 				var item = m_topDataProvider.GetOverflowItems().GetAt(containerIndex);
 				var indexAtRoot = m_topDataProvider.IndexOf(item);
 				path.insert(path.begin(), indexAtRoot);
@@ -1194,14 +1194,14 @@ namespace Microsoft.UI.Xaml.Controls
 			else if (parent == m_topNavRepeater)
 			{
 				// Convert index of selected item in overflow to index in datasource
-				var containerIndex = m_topNavRepeater.GetElementIndex(child as UIElement());
+				var containerIndex = m_topNavRepeater.GetElementIndex(child as UIElement);
 				var item = m_topDataProvider.GetPrimaryItems().GetAt(containerIndex);
 				var indexAtRoot = m_topDataProvider.IndexOf(item);
 				path.insert(path.begin(), indexAtRoot);
 			}
-			else if (var parentIR = parent as ItemsRepeater())
+			else if (parent is ItemsRepeater parentIR)
 		    {
-				path.insert(path.begin(), parentIR.GetElementIndex(child as UIElement()));
+				path.insert(path.begin(), parentIR.GetElementIndex(child as UIElement));
 			}
 
 			isInFooterMenu = parent == m_leftNavFooterMenuRepeater || parent == m_topNavFooterMenuRepeater;
@@ -1211,7 +1211,7 @@ namespace Microsoft.UI.Xaml.Controls
 			return IndexPath.CreateFromIndices(path);
 		}
 
-		private void OnRepeaterElementPrepared(ItemsRepeater ir, ItemsRepeaterElementPreparedEventArgs args)
+		internal void OnRepeaterElementPrepared(ItemsRepeater ir, ItemsRepeaterElementPreparedEventArgs args)
 		{
 			// This validation is only relevant outside of the Windows build where WUXC and MUXC have distinct types.
 			// Certain items are disallowed in a NavigationView's items list. Check for them.
@@ -1284,11 +1284,11 @@ namespace Microsoft.UI.Xaml.Controls
 
 					// Register for item events
 					var nviRevokers = make_self<NavigationViewItemRevokers>();
-					nviRevokers.tappedRevoker = nvi.Tapped(auto_revoke, { this, &OnNavigationViewItemTapped });
-					nviRevokers.keyDownRevoker = nvi.KeyDown(auto_revoke, { this, &OnNavigationViewItemKeyDown });
-					nviRevokers.gotFocusRevoker = nvi.GotFocus(auto_revoke, { this, &OnNavigationViewItemOnGotFocus });
-					nviRevokers.isSelectedRevoker = RegisterPropertyChanged(nvi, NavigationViewItemBase.IsSelectedProperty(), { this, &OnNavigationViewItemIsSelectedPropertyChanged });
-					nviRevokers.isExpandedRevoker = RegisterPropertyChanged(nvi, NavigationViewItem.IsExpandedProperty(), { this, &OnNavigationViewItemExpandedPropertyChanged });
+					nviRevokers.tappedRevoker = nvi.Tapped += OnNavigationViewItemTapped;
+					nviRevokers.keyDownRevoker = nvi.KeyDown += OnNavigationViewItemKeyDown;
+					nviRevokers.gotFocusRevoker = nvi.GotFocus += OnNavigationViewItemOnGotFocus;
+					nviRevokers.isSelectedRevoker = nvi.RegisterPropertyChangedCallback(NavigationViewItemBase.IsSelectedProperty, OnNavigationViewItemIsSelectedPropertyChanged);
+					nviRevokers.isExpandedRevoker = nvi.RegisterPropertyChangedCallback(NavigationViewItem.IsExpandedProperty, OnNavigationViewItemExpandedPropertyChanged);
 					nvi.SetValue(NavigationViewItemRevokersProperty, nviRevokers.as< object > ());
 				}
 			}
@@ -1320,7 +1320,7 @@ namespace Microsoft.UI.Xaml.Controls
 			}
 		}
 
-		private void OnRepeaterElementClearing(ItemsRepeater ir, ItemsRepeaterElementClearingEventArgs args)
+		internal void OnRepeaterElementClearing(ItemsRepeater ir, ItemsRepeaterElementClearingEventArgs args)
 		{
 			if (args.Element is NavigationViewItemBase nvib)
 			{
@@ -1350,7 +1350,7 @@ namespace Microsoft.UI.Xaml.Controls
 			// Do localization for settings item label and Automation Name
 			var localizedSettingsName = ResourceAccessor.GetLocalizedStringResource(ResourceAccessor.SR_SettingsButtonName);
 			AutomationProperties.SetName(settingsItem, localizedSettingsName);
-			settingsItem.Tag = localizedSettingsName);
+			settingsItem.Tag = localizedSettingsName;
 			UpdateSettingsItemToolTip();
 
 			// Add the name only in case of horizontal nav
@@ -3201,7 +3201,7 @@ namespace Microsoft.UI.Xaml.Controls
 			return m_rootSplitView;
 		}
 
-		void TopNavigationViewItemContentChanged()
+		internal void TopNavigationViewItemContentChanged()
 		{
 			if (m_appliedTemplate)
 			{
@@ -4876,7 +4876,7 @@ namespace Microsoft.UI.Xaml.Controls
 
 		// This method attaches the series of animations which are fired off dependent upon the amount 
 		// of space give and the length of the strings involved. It occurs upon re-rendering.
-		private void CreateAndAttachHeaderAnimation(Visual visual)
+		internal void CreateAndAttachHeaderAnimation(Visual visual)
 		{
 			var compositor = visual.Compositor;
 			var cubicFunction = compositor.CreateCubicBezierEasingFunction(new Vector2(0.0f, 0.35f), new Vector2(0.15f, 1.0f));
@@ -5331,7 +5331,7 @@ namespace Microsoft.UI.Xaml.Controls
 			return null;
 		}
 
-		private NavigationViewItemBase GetContainerForIndexPath(IndexPath ip, bool lastVisible)
+		private NavigationViewItemBase GetContainerForIndexPath(IndexPath ip, bool lastVisible = false)
 		{
 			if (ip != null && ip.GetSize() > 0)
 			{

@@ -8,6 +8,8 @@ namespace Microsoft.UI.Xaml.Controls
 {
 	public partial class NavigationViewItem
 	{
+		internal ItemsRepeater GetRepeater() { return m_repeater; }
+
 		private ToolTip m_toolTip = null;
 		private NavigationViewItemHelper<NavigationViewItem> m_helper = null;
 		private NavigationViewItemPresenter m_navigationViewItemPresenter = null;

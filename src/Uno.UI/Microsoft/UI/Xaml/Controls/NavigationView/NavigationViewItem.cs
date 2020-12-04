@@ -1,13 +1,19 @@
 ﻿using System.Collections.Generic;
+using System.Collections.Specialized;
 using Uno.UI.Helpers.WinUI;
 using Windows.Foundation;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Automation;
 using Windows.UI.Xaml.Automation.Peers;
 using Windows.UI.Xaml.Controls;
-using Windows.UI.Xaml.Controls.Primitives;
+using Microsoft.UI.Xaml.Controls.Primitives;
 using Windows.UI.Xaml.Hosting;
 using Windows.UI.Xaml.Input;
+using FlyoutBase = Windows.UI.Xaml.Controls.Primitives.FlyoutBase;
+using FlyoutBaseClosingEventArgs = Windows.UI.Xaml.Controls.Primitives.FlyoutBaseClosingEventArgs;
+using NavigationViewAutomationPeer = Microsoft.UI.Xaml.Automation.Peers.NavigationViewAutomationPeer;
+using NavigationViewItemAutomationPeer = Microsoft.UI.Xaml.Automation.Peers.NavigationViewItemAutomationPeer;
+using static Microsoft.UI.Xaml.Controls._Tracing;
 
 namespace Microsoft.UI.Xaml.Controls
 {
@@ -37,7 +43,7 @@ namespace Microsoft.UI.Xaml.Controls
 			SetValue(MenuItemsProperty, new List<object>());
 		}
 
-		private void UpdateVisualStateNoTransition()
+		internal void UpdateVisualStateNoTransition()
 		{
 			UpdateVisualState(false /*useTransition*/);
 		}
@@ -81,24 +87,24 @@ namespace Microsoft.UI.Xaml.Controls
 				var flyoutBase = FlyoutBase.GetAttachedFlyout(rootGrid);
 				if (flyoutBase != null)
 				{
-					m_flyoutClosingRevoker = flyoutBase.Closing(auto_revoke, { this, OnFlyoutClosing });
+					m_flyoutClosingRevoker = flyoutBase.Closing += OnFlyoutClosing;
 				}
 			}
 
 			HookInputEvents(controlProtected);
 
-			m_isEnabledChangedRevoker = IsEnabledChanged(auto_revoke, { this,  OnIsEnabledChanged });
+			m_isEnabledChangedRevoker = IsEnabledChanged += OnIsEnabledChanged;
 
 			m_toolTip = (ToolTip)GetTemplateChild("ToolTip");
 
 			var splitView = GetSplitView(); if (splitView != null)
 			{
-				m_splitViewIsPaneOpenChangedRevoker = RegisterPropertyChanged(splitView,
-					SplitView.IsPaneOpenProperty, { this, OnSplitViewPropertyChanged });
-				m_splitViewDisplayModeChangedRevoker = RegisterPropertyChanged(splitView,
-					SplitView.DisplayModeProperty, { this, OnSplitViewPropertyChanged });
-				m_splitViewCompactPaneLengthChangedRevoker = RegisterPropertyChanged(splitView,
-					SplitView.CompactPaneLengthProperty, { this, OnSplitViewPropertyChanged });
+				m_splitViewIsPaneOpenChangedRevoker = splitView.RegisterPropertyChangedCallback(
+					SplitView.IsPaneOpenProperty, OnSplitViewPropertyChanged);
+				m_splitViewDisplayModeChangedRevoker = splitView.RegisterPropertyChangedCallback(
+					SplitView.DisplayModeProperty, OnSplitViewPropertyChanged);
+				m_splitViewCompactPaneLengthChangedRevoker = splitView.RegisterPropertyChangedCallback(
+					SplitView.CompactPaneLengthProperty, OnSplitViewPropertyChanged);
 
 				UpdateCompactPaneLength();
 				UpdateIsClosedCompact();
@@ -114,8 +120,8 @@ namespace Microsoft.UI.Xaml.Controls
 					m_repeater = repeater;
 
 					// Primary element setup happens in NavigationView
-					m_repeaterElementPreparedRevoker = repeater.ElementPrepared(auto_revoke, { nvImpl,  &NavigationView.OnRepeaterElementPrepared });
-					m_repeaterElementClearingRevoker = repeater.ElementClearing(auto_revoke, { nvImpl, &NavigationView.OnRepeaterElementClearing });
+					m_repeaterElementPreparedRevoker = repeater.ElementPrepared += nvImpl.OnRepeaterElementPrepared;
+					m_repeaterElementClearingRevoker = repeater.ElementClearing += nvImpl.OnRepeaterElementClearing;
 
 					repeater.ItemTemplate = nvImpl.GetNavigationViewItemsFactory();
 				}
@@ -145,27 +151,28 @@ namespace Microsoft.UI.Xaml.Controls
 			var repeater = m_repeater;
 			if (repeater != null)
 			{
-				var itemsSource = [this]()
-
-		{
-					if (var menuItemsSource = MenuItemsSource)
-            {
+				object GetItemsSource()
+				{
+					var menuItemsSource = MenuItemsSource;
+					if (menuItemsSource != null)
+					{
 						return menuItemsSource;
 					}
 					return MenuItems;
-				} ();
+				}
+				var itemsSource = GetItemsSource();
 				m_itemsSourceViewCollectionChangedRevoker.revoke();
-				repeater.ItemsSource(itemsSource);
-				m_itemsSourceViewCollectionChangedRevoker = repeater.ItemsSourceView.CollectionChanged(auto_revoke, { this, OnItemsSourceViewChanged });
+				repeater.ItemsSource = itemsSource;
+				m_itemsSourceViewCollectionChangedRevoker = repeater.ItemsSourceView.CollectionChanged += OnItemsSourceViewChanged;
 			}
 		}
 
-		void OnItemsSourceViewChanged(object sender, NotifyCollectionChangedEventArgs args)
+		private void OnItemsSourceViewChanged(object sender, NotifyCollectionChangedEventArgs args)
 		{
 			UpdateVisualStateForChevron();
 		}
 
-		UIElement GetSelectionIndicator()
+		internal UIElement GetSelectionIndicator()
 		{
 			var selectIndicator = m_helper.GetSelectionIndicator();
 			var presenter = GetPresenter();
@@ -176,7 +183,7 @@ namespace Microsoft.UI.Xaml.Controls
 			return selectIndicator;
 		}
 
-		void OnSplitViewPropertyChanged(DependencyObject sender, DependencyProperty args)
+		private void OnSplitViewPropertyChanged(DependencyObject sender, DependencyProperty args)
 		{
 			if (args == SplitView.CompactPaneLengthProperty)
 			{
@@ -228,7 +235,7 @@ namespace Microsoft.UI.Xaml.Controls
 			var toolTipContent = ToolTipService.GetToolTip(this);
 
 			// no custom tooltip, then use suggested tooltip
-			if (!toolTipContent || toolTipContent == m_suggestedToolTipContent)
+			if (toolTipContent == null || toolTipContent == m_suggestedToolTipContent)
 			{
 				if (ShouldEnableToolTip())
 				{
@@ -273,8 +280,8 @@ namespace Microsoft.UI.Xaml.Controls
 			AutomationPeer peer = FrameworkElementAutomationPeer.FromElement(this);
 			if (peer != null)
 			{
-				var navViewItemPeer = peer.as< NavigationViewItemAutomationPeer > ();
-				get_self<NavigationViewItemAutomationPeer>(navViewItemPeer).RaiseExpandCollapseAutomationEvent(
+				var navViewItemPeer = (NavigationViewItemAutomationPeer)peer;
+				navViewItemPeer.RaiseExpandCollapseAutomationEvent(
 					IsExpanded ?
 						ExpandCollapseState.Expanded :
 						ExpandCollapseState.Collapsed
@@ -282,29 +289,29 @@ namespace Microsoft.UI.Xaml.Controls
 			}
 		}
 
-		void OnIconPropertyChanged(DependencyPropertyChangedEventArgs args)
+		private void OnIconPropertyChanged(DependencyPropertyChangedEventArgs args)
 		{
 			UpdateVisualStateNoTransition();
 		}
 
-		void OnMenuItemsPropertyChanged(DependencyPropertyChangedEventArgs args)
+		private void OnMenuItemsPropertyChanged(DependencyPropertyChangedEventArgs args)
 		{
 			UpdateRepeaterItemsSource();
 			UpdateVisualStateForChevron();
 		}
 
-		void OnMenuItemsSourcePropertyChanged(DependencyPropertyChangedEventArgs args)
+		private void OnMenuItemsSourcePropertyChanged(DependencyPropertyChangedEventArgs args)
 		{
 			UpdateRepeaterItemsSource();
 			UpdateVisualStateForChevron();
 		}
 
-		void OnHasUnrealizedChildrenPropertyChanged(DependencyPropertyChangedEventArgs args)
+		private void OnHasUnrealizedChildrenPropertyChanged(DependencyPropertyChangedEventArgs args)
 		{
 			UpdateVisualStateForChevron();
 		}
 
-		void ShowSelectionIndicator(bool visible)
+		private void ShowSelectionIndicator(bool visible)
 		{
 			var selectionIndicator = GetSelectionIndicator();
 			if (selectionIndicator != null)
@@ -313,7 +320,7 @@ namespace Microsoft.UI.Xaml.Controls
 			}
 		}
 
-		void UpdateVisualStateForIconAndContent(bool showIcon, bool showContent)
+		private void UpdateVisualStateForIconAndContent(bool showIcon, bool showContent)
 		{
 			var presenter = m_navigationViewItemPresenter;
 			if (presenter != null)
@@ -323,7 +330,7 @@ namespace Microsoft.UI.Xaml.Controls
 			}
 		}
 
-		void UpdateVisualStateForNavigationViewPositionChange()
+		private void UpdateVisualStateForNavigationViewPositionChange()
 		{
 			var position = Position;
 			var stateName = NavigationViewItemHelper.c_OnLeftNavigation;
@@ -366,7 +373,7 @@ namespace Microsoft.UI.Xaml.Controls
 			}
 		}
 
-		void UpdateVisualStateForKeyboardFocusedState()
+		private void UpdateVisualStateForKeyboardFocusedState()
 		{
 			var focusState = "KeyboardNormal";
 			if (m_hasKeyboardFocus)
@@ -377,7 +384,7 @@ namespace Microsoft.UI.Xaml.Controls
 			VisualStateManager.GoToState(this, focusState, false /*useTransitions*/);
 		}
 
-		void UpdateVisualStateForToolTip()
+		private void UpdateVisualStateForToolTip()
 		{
 			// Since RS5, ToolTip apply to NavigationViewItem directly to make Keyboard focus has tooltip too.
 			// If ToolTip TemplatePart is detected, fallback to old logic and apply ToolTip on TemplatePart.
@@ -403,15 +410,13 @@ namespace Microsoft.UI.Xaml.Controls
 			}
 		}
 
-		void UpdateVisualStateForPointer()
+		private void UpdateVisualStateForPointer()
 		{
 			var isEnabled = IsEnabled;
 			var enabledStateValue = isEnabled ? c_enabled : c_disabled;
-			// DisabledStates and CommonStates
-			var selectedStateValue = [this, isEnabled, isSelected = IsSelected]()
 
-
-	{
+			string GetSelectedStateValue(bool isEnabled, bool isSelected)
+			{
 				if (isEnabled)
 				{
 					if (isSelected)
@@ -453,7 +458,9 @@ namespace Microsoft.UI.Xaml.Controls
 					}
 				}
 				return c_normal;
-			} ();
+			}
+			// DisabledStates and CommonStates
+			var selectedStateValue = GetSelectedStateValue(isEnabled, IsSelected);
 
 			// There are scenarios where the presenter may not exist.
 			// For example, the top nav settings item. In that case,
@@ -472,7 +479,8 @@ namespace Microsoft.UI.Xaml.Controls
 			}
 		}
 
-		void UpdateVisualState(bool useTransitions)
+		// TODO: Override?
+		private void UpdateVisualState(bool useTransitions)
 		{
 			if (!m_appliedTemplate)
 				return;
@@ -521,18 +529,18 @@ namespace Microsoft.UI.Xaml.Controls
 				|| HasUnrealizedChildren;
 		}
 
-		bool ShouldShowIcon()
+		private bool ShouldShowIcon()
 		{
 			return Icon != null;
 		}
 
-		bool ShouldEnableToolTip()
+		private bool ShouldEnableToolTip()
 		{
 			// We may enable Tooltip for IconOnly in the future, but not now
 			return IsOnLeftNav() && m_isClosedCompact;
 		}
 
-		bool ShouldShowContent()
+		private bool ShouldShowContent()
 		{
 			return Content != null;
 		}
@@ -543,12 +551,12 @@ namespace Microsoft.UI.Xaml.Controls
 			return position == NavigationViewRepeaterPosition.LeftNav || position == NavigationViewRepeaterPosition.LeftFooter;
 		}
 
-		bool IsOnTopPrimary()
+		private bool IsOnTopPrimary()
 		{
 			return Position == NavigationViewRepeaterPosition.TopPrimary;
 		}
 
-		UIElement GetPresenterOrItem()
+		private UIElement GetPresenterOrItem()
 		{
 			var presenter = m_navigationViewItemPresenter;
 			if (presenter != null)
@@ -609,7 +617,7 @@ namespace Microsoft.UI.Xaml.Controls
 			}
 		}
 
-		void ReparentRepeater()
+		private void ReparentRepeater()
 		{
 			if (HasChildren())
 			{
@@ -619,15 +627,15 @@ namespace Microsoft.UI.Xaml.Controls
 					{
 						// Reparent repeater to flyout
 						// TODO: Replace removeatend with something more specific
-						m_rootGrid.Children.RemoveAtEnd();
-						m_flyoutContentGrid.Children.Append(repeater);
+						m_rootGrid.Children.RemoveAt(m_rootGrid.Children.Count - 1);
+						m_flyoutContentGrid.Children.Add(repeater);
 						m_isRepeaterParentedToFlyout = true;
 
 						PropagateDepthToChildren(0);
 					}
 					else if (!ShouldRepeaterShowInFlyout() && m_isRepeaterParentedToFlyout)
 					{
-						m_flyoutContentGrid.Children.RemoveAtEnd();
+						m_flyoutContentGrid.Children.RemoveAt(m_flyoutContentGrid.Children.Count - 1);
 						m_rootGrid.Children.Add(repeater);
 						m_isRepeaterParentedToFlyout = false;
 
@@ -654,343 +662,355 @@ namespace Microsoft.UI.Xaml.Controls
 		private void UpdateItemIndentation()
 		{
 			// Update item indentation based on its depth
-			if (var presenter = m_navigationViewItemPresenter)
-    {
+			var presenter = m_navigationViewItemPresenter;
+			if (presenter != null)
+			{
 				var newLeftMargin = Depth * c_itemIndentation;
-				get_self<NavigationViewItemPresenter>(presenter).UpdateContentLeftIndentation((double)(newLeftMargin));
+				presenter.UpdateContentLeftIndentation((double)(newLeftMargin));
 			}
 		}
 
-		void PropagateDepthToChildren(int depth)
+		private void PropagateDepthToChildren(int depth)
 		{
 			var repeater = m_repeater; if (repeater != null)
 			{
 				var itemsCount = repeater.ItemsSourceView.Count;
 				for (int index = 0; index < itemsCount; index++)
 				{
-					if (var element = repeater.TryGetElement(index))
-            {
-					var nvib = element as NavigationViewItemBase;
-					if (nvib != null)
-                {
-						get_self<NavigationViewItemBase>(nvib).Depth(depth);
+					var element = repeater.TryGetElement(index);
+					if (element != null)
+					{
+						var nvib = element as NavigationViewItemBase;
+						if (nvib != null)
+						{
+							nvib.Depth = depth;
+						}
 					}
 				}
 			}
 		}
-	}
 
-	void OnExpandCollapseChevronTapped(object sender, TappedRoutedEventArgs args)
-	{
-		IsExpanded = !IsExpanded;
-		args.Handled = true;
-	}
-
-	void OnFlyoutClosing(object sender, FlyoutBaseClosingEventArgs args)
-	{
-		IsExpanded = false;
-	}
-
-	// UIElement / UIElementOverridesHelper
-	protected override AutomationPeer OnCreateAutomationPeer()
-	{
-		return new NavigationViewItemAutomationPeer(this);
-	}
-
-	// IContentControlOverrides / IContentControlOverridesHelper
-	void OnContentChanged(object oldContent, object newContent)
-	{
-		NavigationViewItemBase.OnContentChanged(oldContent, newContent);
-		SuggestedToolTipChanged(newContent);
-		UpdateVisualStateNoTransition();
-
-		if (!IsOnLeftNav())
+		private void OnExpandCollapseChevronTapped(object sender, TappedRoutedEventArgs args)
 		{
-			// Content has changed for the item, so we want to trigger a re-measure
-			if (var navView = GetNavigationView())
-        {
-				get_self<NavigationView>(navView).TopNavigationViewItemContentChanged();
+			IsExpanded = !IsExpanded;
+			args.Handled = true;
+		}
+
+		private void OnFlyoutClosing(object sender, FlyoutBaseClosingEventArgs args)
+		{
+			IsExpanded = false;
+		}
+
+		// UIElement / UIElementOverridesHelper
+		protected override AutomationPeer OnCreateAutomationPeer()
+		{
+			return new NavigationViewItemAutomationPeer(this);
+		}
+
+		// IContentControlOverrides / IContentControlOverridesHelper
+		protected override void OnContentChanged(object oldContent, object newContent)
+		{
+			base.OnContentChanged(oldContent, newContent);
+			SuggestedToolTipChanged(newContent);
+			UpdateVisualStateNoTransition();
+
+			if (!IsOnLeftNav())
+			{
+				// Content has changed for the item, so we want to trigger a re-measure
+				var navView = GetNavigationView();
+				if (navView != null)
+				{
+					navView.TopNavigationViewItemContentChanged();
+				}
 			}
 		}
-	}
 
-	private void OnGotFocus(RoutedEventArgs e)
-	{
-		NavigationViewItemBase.OnGotFocus(e);
-		var originalSource = e.OriginalSource as Control;
-		if (originalSource)
+		protected override void OnGotFocus(RoutedEventArgs e)
 		{
-			// It's used to support bluebar have difference appearance between focused and focused+selection. 
-			// For example, we can move the SelectionIndicator 3px up when focused and selected to make sure focus rectange doesn't override SelectionIndicator. 
-			// If it's a pointer or programatic, no focus rectangle, so no action
-			var focusState = originalSource.FocusState;
-			if (focusState == FocusState.Keyboard)
+			base.OnGotFocus(e);
+			var originalSource = e.OriginalSource as Control;
+			if (originalSource != null)
 			{
-				m_hasKeyboardFocus = true;
+				// It's used to support bluebar have difference appearance between focused and focused+selection. 
+				// For example, we can move the SelectionIndicator 3px up when focused and selected to make sure focus rectange doesn't override SelectionIndicator. 
+				// If it's a pointer or programatic, no focus rectangle, so no action
+				var focusState = originalSource.FocusState;
+				if (focusState == FocusState.Keyboard)
+				{
+					m_hasKeyboardFocus = true;
+					UpdateVisualStateNoTransition();
+				}
+			}
+		}
+
+		protected override void OnLostFocus(RoutedEventArgs e)
+		{
+			base.OnLostFocus(e);
+			if (m_hasKeyboardFocus)
+			{
+				m_hasKeyboardFocus = false;
 				UpdateVisualStateNoTransition();
 			}
 		}
-	}
 
-	private void OnLostFocus(RoutedEventArgs e)
-	{
-		NavigationViewItemBase.OnLostFocus(e);
-		if (m_hasKeyboardFocus)
+		private void ResetTrackedPointerId()
 		{
-			m_hasKeyboardFocus = false;
-			UpdateVisualStateNoTransition();
-		}
-	}
-
-	private void ResetTrackedPointerId()
-	{
-		m_trackedPointerId = 0;
-	}
-
-	// Returns False when the provided pointer Id matches the currently tracked Id.
-	// When there is no currently tracked Id, sets the tracked Id to the provided Id and returns False.
-	// Returns True when the provided pointer Id does not match the currently tracked Id.
-	bool IgnorePointerId(PointerRoutedEventArgs args)
-	{
-		uint pointerId = args.Pointer.PointerId;
-
-		if (m_trackedPointerId == 0)
-		{
-			m_trackedPointerId = pointerId;
-		}
-		else if (m_trackedPointerId != pointerId)
-		{
-			return true;
-		}
-		return false;
-	}
-
-	void OnPresenterPointerPressed(object sender, PointerRoutedEventArgs args)
-	{
-		if (IgnorePointerId(args))
-		{
-			return;
+			m_trackedPointerId = 0;
 		}
 
-		MUX_ASSERT(!m_isPressed);
-		MUX_ASSERT(!m_capturedPointer);
-
-		// TODO: Update to look at presenter instead
-		var pointerProperties = args.GetCurrentPoint(this).Properties();
-		m_isPressed = pointerProperties.IsLeftButtonPressed() || pointerProperties.IsRightButtonPressed();
-
-		var pointer = args.Pointer;
-		var presenter = GetPresenterOrItem();
-
-		MUX_ASSERT(presenter);
-
-		if (presenter.CapturePointer(pointer))
+		// Returns False when the provided pointer Id matches the currently tracked Id.
+		// When there is no currently tracked Id, sets the tracked Id to the provided Id and returns False.
+		// Returns True when the provided pointer Id does not match the currently tracked Id.
+		private bool IgnorePointerId(PointerRoutedEventArgs args)
 		{
-			m_capturedPointer = pointer;
-		}
+			uint pointerId = args.Pointer.PointerId;
 
-		UpdateVisualState(true);
-	}
-
-	void OnPresenterPointerReleased(object sender, PointerRoutedEventArgs args)
-	{
-		if (IgnorePointerId(args))
-		{
-			return;
-		}
-
-		if (m_isPressed)
-		{
-			m_isPressed = false;
-
-			if (m_capturedPointer)
+			if (m_trackedPointerId == 0)
 			{
-				var presenter = GetPresenterOrItem();
+				m_trackedPointerId = pointerId;
+			}
+			else if (m_trackedPointerId != pointerId)
+			{
+				return true;
+			}
+			return false;
+		}
 
-				MUX_ASSERT(presenter);
+		private void OnPresenterPointerPressed(object sender, PointerRoutedEventArgs args)
+		{
+			if (IgnorePointerId(args))
+			{
+				return;
+			}
 
-				presenter.ReleasePointerCapture(m_capturedPointer);
+			MUX_ASSERT(!m_isPressed);
+			MUX_ASSERT(m_capturedPointer == null);
+
+			// WinUI TODO: Update to look at presenter instead
+			var pointerProperties = args.GetCurrentPoint(this).Properties;
+			m_isPressed = pointerProperties.IsLeftButtonPressed || pointerProperties.IsRightButtonPressed;
+
+			var pointer = args.Pointer;
+			var presenter = GetPresenterOrItem();
+
+			MUX_ASSERT(presenter != null);
+
+			if (presenter.CapturePointer(pointer))
+			{
+				m_capturedPointer = pointer;
 			}
 
 			UpdateVisualState(true);
 		}
-	}
 
-	void OnPresenterPointerEntered(object sender, PointerRoutedEventArgs args)
-	{
-		ProcessPointerOver(args);
-	}
-
-	void OnPresenterPointerMoved(object sender, PointerRoutedEventArgs args)
-	{
-		ProcessPointerOver(args);
-	}
-
-	void OnPresenterPointerExited(object sender, PointerRoutedEventArgs args)
-	{
-		if (IgnorePointerId(args))
+		private void OnPresenterPointerReleased(object sender, PointerRoutedEventArgs args)
 		{
-			return;
+			if (IgnorePointerId(args))
+			{
+				return;
+			}
+
+			if (m_isPressed)
+			{
+				m_isPressed = false;
+
+				if (m_capturedPointer != null)
+				{
+					var presenter = GetPresenterOrItem();
+
+					MUX_ASSERT(presenter != null);
+
+					presenter.ReleasePointerCapture(m_capturedPointer);
+				}
+
+				UpdateVisualState(true);
+			}
 		}
 
-		m_isPointerOver = false;
-
-		if (!m_capturedPointer)
+		private void OnPresenterPointerEntered(object sender, PointerRoutedEventArgs args)
 		{
-			ResetTrackedPointerId;
+			ProcessPointerOver(args);
 		}
 
-		UpdateVisualState(true);
-	}
-
-	void OnPresenterPointerCanceled(object sender, PointerRoutedEventArgs args)
-	{
-		ProcessPointerCanceled(args);
-	}
-
-	void OnPresenterPointerCaptureLost(object sender, PointerRoutedEventArgs args)
-	{
-		ProcessPointerCanceled(args);
-	}
-
-	void OnIsEnabledChanged(object sender, DependencyPropertyChangedEventArgs)
-	{
-		if (!IsEnabled)
+		private void OnPresenterPointerMoved(object sender, PointerRoutedEventArgs args)
 		{
-			m_isPressed = false;
+			ProcessPointerOver(args);
+		}
+
+		private void OnPresenterPointerExited(object sender, PointerRoutedEventArgs args)
+		{
+			if (IgnorePointerId(args))
+			{
+				return;
+			}
+
 			m_isPointerOver = false;
 
-			if (m_capturedPointer)
+			if (m_capturedPointer == null)
 			{
-				var presenter = GetPresenterOrItem();
-
-				MUX_ASSERT(presenter);
-
-				presenter.ReleasePointerCapture(m_capturedPointer);
-				m_capturedPointer = null;
+				ResetTrackedPointerId();
 			}
 
-			ResetTrackedPointerId;
-		}
-
-		UpdateVisualState(true);
-	}
-
-	void RotateExpandCollapseChevron(bool isExpanded)
-	{
-		var presenter = GetPresenter(); if (presenter != null)
-		{
-			presenter.RotateExpandCollapseChevron(isExpanded);
-		}
-	}
-
-	void ProcessPointerCanceled(PointerRoutedEventArgs args)
-	{
-		if (IgnorePointerId(args))
-		{
-			return;
-		}
-
-		m_isPressed = false;
-		m_isPointerOver = false;
-		m_capturedPointer = null;
-		ResetTrackedPointerId;
-		UpdateVisualState(true);
-	}
-
-	void ProcessPointerOver(PointerRoutedEventArgs args)
-	{
-		if (IgnorePointerId(args))
-		{
-			return;
-		}
-
-		if (!m_isPointerOver)
-		{
-			m_isPointerOver = true;
 			UpdateVisualState(true);
 		}
-	}
 
-	void HookInputEvents(IControlProtected& controlProtected)
-	{
-		UIElement presenter = [this, controlProtected]()
+		private void OnPresenterPointerCanceled(object sender, PointerRoutedEventArgs args)
+		{
+			ProcessPointerCanceled(args);
+		}
 
+		private void OnPresenterPointerCaptureLost(object sender, PointerRoutedEventArgs args)
+		{
+			ProcessPointerCanceled(args);
+		}
 
-	{
-			if (var presenter = GetTemplateChildT<NavigationViewItemPresenter>(c_navigationViewItemPresenterName, controlProtected))
-        {
-				m_navigationViewItemPresenter = presenter;
-				return presenter as UIElement;
+		private void OnIsEnabledChanged(object sender, DependencyPropertyChangedEventArgs args)
+		{
+			if (!IsEnabled)
+			{
+				m_isPressed = false;
+				m_isPointerOver = false;
+
+				if (m_capturedPointer != null)
+				{
+					var presenter = GetPresenterOrItem();
+
+					MUX_ASSERT(presenter != null);
+
+					presenter.ReleasePointerCapture(m_capturedPointer);
+					m_capturedPointer = null;
+				}
+
+				ResetTrackedPointerId();
 			}
-			// We don't have a presenter, so we are our own presenter.
-			return this as UIElement;
-		} ();
 
-		MUX_ASSERT(presenter);
+			UpdateVisualState(true);
+		}
 
-		// Handlers that set flags are skipped when args.Handled is already True.
-		m_presenterPointerPressedRevoker = presenter.PointerPressed(auto_revoke, { this, OnPresenterPointerPressed });
-		m_presenterPointerEnteredRevoker = presenter.PointerEntered(auto_revoke, { this, OnPresenterPointerEntered });
-		m_presenterPointerMovedRevoker = presenter.PointerMoved(auto_revoke, { this, OnPresenterPointerMoved });
+		private void RotateExpandCollapseChevron(bool isExpanded)
+		{
+			var presenter = GetPresenter(); if (presenter != null)
+			{
+				presenter.RotateExpandCollapseChevron(isExpanded);
+			}
+		}
 
-		// Handlers that reset flags are not skipped when args.Handled is already True to avoid broken states.
-		m_presenterPointerReleasedRevoker = AddRoutedEventHandler<RoutedEventType.PointerReleased>(
-			presenter,
+		private void ProcessPointerCanceled(PointerRoutedEventArgs args)
+		{
+			if (IgnorePointerId(args))
+			{
+				return;
+			}
+
+			m_isPressed = false;
+			m_isPointerOver = false;
+			m_capturedPointer = null;
+			ResetTrackedPointerId();
+			UpdateVisualState(true);
+		}
+
+		private void ProcessPointerOver(PointerRoutedEventArgs args)
+		{
+			if (IgnorePointerId(args))
+			{
+				return;
+			}
+
+			if (!m_isPointerOver)
+			{
+				m_isPointerOver = true;
+				UpdateVisualState(true);
+			}
+		}
+
+		private void HookInputEvents()
+		{
+			UIElement GetPresenter()
+			{
+				var presenter = GetTemplateChild(c_navigationViewItemPresenterName) as NavigationViewItemPresenter;
+				if (presenter != null)
+				{
+					m_navigationViewItemPresenter = presenter;
+					return presenter as UIElement;
+				}
+				// We don't have a presenter, so we are our own presenter.
+				return this as UIElement;
+			}
+			UIElement presenter = GetPresenter();
+
+			MUX_ASSERT(presenter != null);
+
+			// Handlers that set flags are skipped when args.Handled is already True.
+			m_presenterPointerPressedRevoker = presenter.PointerPressed += OnPresenterPointerPressed;
+			m_presenterPointerEnteredRevoker = presenter.PointerEntered += OnPresenterPointerEntered;
+			m_presenterPointerMovedRevoker = presenter.PointerMoved += OnPresenterPointerMoved;
+
+			// Handlers that reset flags are not skipped when args.Handled is already True to avoid broken states.
+			m_presenterPointerReleasedRevoker = AddRoutedEventHandler<RoutedEventType.PointerReleased>(
+				presenter,
 
 
-		{ this, OnPresenterPointerReleased },
+
+
+		{ this, OnPresenterPointerReleased
+	},
         true /*handledEventsToo*/);
-		m_presenterPointerExitedRevoker = AddRoutedEventHandler<RoutedEventType.PointerExited>(
-			presenter,
+			m_presenterPointerExitedRevoker = AddRoutedEventHandler<RoutedEventType.PointerExited>(
+				presenter,
+
+
 
 
 		{ this, OnPresenterPointerExited },
         true /*handledEventsToo*/);
-		m_presenterPointerCanceledRevoker = AddRoutedEventHandler<RoutedEventType.PointerCanceled>(
-			presenter,
+			m_presenterPointerCanceledRevoker = AddRoutedEventHandler<RoutedEventType.PointerCanceled>(
+				presenter,
+
+
 
 
 		{ this, OnPresenterPointerCanceled },
         true /*handledEventsToo*/);
-		m_presenterPointerCaptureLostRevoker = AddRoutedEventHandler<RoutedEventType.PointerCaptureLost>(
-			presenter,
+			m_presenterPointerCaptureLostRevoker = AddRoutedEventHandler<RoutedEventType.PointerCaptureLost>(
+				presenter,
+
+
 
 
 		{ this, OnPresenterPointerCaptureLost },
         true /*handledEventsToo*/);
-	}
+		}
 
-	void UnhookInputEvents()
-	{
-		m_presenterPointerPressedRevoker.revoke();
-		m_presenterPointerEnteredRevoker.revoke();
-		m_presenterPointerMovedRevoker.revoke();
-		m_presenterPointerReleasedRevoker.revoke();
-		m_presenterPointerExitedRevoker.revoke();
-		m_presenterPointerCanceledRevoker.revoke();
-		m_presenterPointerCaptureLostRevoker.revoke();
-	}
-
-	void UnhookEventsAndClearFields()
-	{
-		UnhookInputEvents();
-
-		m_flyoutClosingRevoker.revoke();
-		m_splitViewIsPaneOpenChangedRevoker.revoke();
-		m_splitViewDisplayModeChangedRevoker.revoke();
-		m_splitViewCompactPaneLengthChangedRevoker.revoke();
-		m_repeaterElementPreparedRevoker.revoke();
-		m_repeaterElementClearingRevoker.revoke();
-		m_isEnabledChangedRevoker.revoke();
-		m_itemsSourceViewCollectionChangedRevoker.revoke();
-
-		m_rootGrid = null;
-		m_navigationViewItemPresenter = null;
-		m_toolTip = null;
-		m_repeater = null;
-		m_flyoutContentGrid = null;
-	}
-
+private void UnhookInputEvents()
+{
+	m_presenterPointerPressedRevoker.revoke();
+	m_presenterPointerEnteredRevoker.revoke();
+	m_presenterPointerMovedRevoker.revoke();
+	m_presenterPointerReleasedRevoker.revoke();
+	m_presenterPointerExitedRevoker.revoke();
+	m_presenterPointerCanceledRevoker.revoke();
+	m_presenterPointerCaptureLostRevoker.revoke();
 }
+
+private void UnhookEventsAndClearFields()
+{
+	UnhookInputEvents();
+
+	m_flyoutClosingRevoker.revoke();
+	m_splitViewIsPaneOpenChangedRevoker.revoke();
+	m_splitViewDisplayModeChangedRevoker.revoke();
+	m_splitViewCompactPaneLengthChangedRevoker.revoke();
+	m_repeaterElementPreparedRevoker.revoke();
+	m_repeaterElementClearingRevoker.revoke();
+	m_isEnabledChangedRevoker.revoke();
+	m_itemsSourceViewCollectionChangedRevoker.revoke();
+
+	m_rootGrid = null;
+	m_navigationViewItemPresenter = null;
+	m_toolTip = null;
+	m_repeater = null;
+	m_flyoutContentGrid = null;
+}
+
+	}
 }
