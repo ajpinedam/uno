@@ -108,7 +108,7 @@ namespace Microsoft.UI.Xaml.Controls
 			return new NavigationViewAutomationPeer(this);
 		}
 
-		void UnhookEventsAndClearFields(bool isFromDestructor)
+		internal void UnhookEventsAndClearFields(bool isFromDestructor = false)
 		{
 			//TODO: MZ: Implement
 
@@ -177,6 +177,8 @@ namespace Microsoft.UI.Xaml.Controls
 
 		public NavigationView()
 		{
+			// Uno specific - need to initialize here to be able to use "this"
+			m_topDataProvider = new TopNavigationViewDataProvider(this);
 			//__RP_Marker_ClassById(RuntimeProfiler.ProfId_NavigationView);
 			SetValue(TemplateSettingsProperty, new NavigationViewTemplateSettings());
 			DefaultStyleKey = typeof(NavigationView);
@@ -213,14 +215,6 @@ namespace Microsoft.UI.Xaml.Controls
 			m_childrenRequestedRevoker.Disposable = Disposable.Create(() => m_selectionModel.ChildrenRequested -= OnSelectionModelChildrenRequested);
 
 			m_navigationViewItemsFactory = new NavigationViewItemsFactory();
-
-			NavigationViewItemRevokersProperty =
-				InitializeDependencyProperty(
-					"NavigationViewItemRevokers",
-					name_of<object>(),
-					name_of<NavigationViewItem>(),
-					true /* isAttached */,
-					null /* defaultValue */);
 		}
 
 		private void OnSelectionModelChildrenRequested(SelectionModel selectionModel, SelectionModelChildrenRequestedEventArgs e)
@@ -1202,7 +1196,7 @@ namespace Microsoft.UI.Xaml.Controls
 				{
 					if (child is UIElement childElement)
 					{
-						path.insert(path.begin(), parentIR.GetElementIndex(childElement));
+						path.Insert(0, parentIR.GetElementIndex(childElement));
 					}
 				}
 				child = parent;
@@ -1227,7 +1221,7 @@ namespace Microsoft.UI.Xaml.Controls
 				var containerIndex = m_topNavRepeaterOverflowView.GetElementIndex(child as UIElement);
 				var item = m_topDataProvider.GetOverflowItems()[containerIndex];
 				var indexAtRoot = m_topDataProvider.IndexOf(item);
-				path.insert(path.begin(), indexAtRoot);
+				path.Insert(0, indexAtRoot);
 			}
 			else if (parent == m_topNavRepeater)
 			{
@@ -1235,16 +1229,16 @@ namespace Microsoft.UI.Xaml.Controls
 				var containerIndex = m_topNavRepeater.GetElementIndex(child as UIElement);
 				var item = m_topDataProvider.GetPrimaryItems()[containerIndex];
 				var indexAtRoot = m_topDataProvider.IndexOf(item);
-				path.insert(path.begin(), indexAtRoot);
+				path.Insert(0, indexAtRoot);
 			}
 			else if (parent is ItemsRepeater parentIR)
 			{
-				path.insert(path.begin(), parentIR.GetElementIndex(child as UIElement));
+				path.Insert(0, parentIR.GetElementIndex(child as UIElement));
 			}
 
 			isInFooterMenu = parent == m_leftNavFooterMenuRepeater || parent == m_topNavFooterMenuRepeater;
 
-			path.insert(path.begin(), isInFooterMenu ? c_footerMenuBlockIndex : c_mainMenuBlockIndex);
+			path.Insert(0, isInFooterMenu ? c_footerMenuBlockIndex : c_mainMenuBlockIndex);
 
 			return IndexPath.CreateFromIndices(path);
 		}
@@ -1321,13 +1315,19 @@ namespace Microsoft.UI.Xaml.Controls
 					nvi.PropagateDepthToChildren(childDepth);
 
 					// Register for item events
-					var nviRevokers = make_self<NavigationViewItemRevokers>();
-					nviRevokers.tappedRevoker = nvi.Tapped += OnNavigationViewItemTapped;
-					nviRevokers.keyDownRevoker = nvi.KeyDown += OnNavigationViewItemKeyDown;
-					nviRevokers.gotFocusRevoker = nvi.GotFocus += OnNavigationViewItemOnGotFocus;
-					nviRevokers.isSelectedRevoker = nvi.RegisterPropertyChangedCallback(NavigationViewItemBase.IsSelectedProperty, OnNavigationViewItemIsSelectedPropertyChanged);
-					nviRevokers.isExpandedRevoker = nvi.RegisterPropertyChangedCallback(NavigationViewItem.IsExpandedProperty, OnNavigationViewItemExpandedPropertyChanged);
-					nvi.SetValue(NavigationViewItemRevokersProperty, nviRevokers.as< object > ());
+					nvi.Tapped += OnNavigationViewItemTapped;
+					nvi.KeyDown += OnNavigationViewItemKeyDown;
+					nvi.GotFocus += OnNavigationViewItemOnGotFocus;
+					var isSelectedSubscription = nvi.RegisterPropertyChangedCallback(NavigationViewItemBase.IsSelectedProperty, OnNavigationViewItemIsSelectedPropertyChanged);
+					var isExpandedSubscription = nvi.RegisterPropertyChangedCallback(NavigationViewItem.IsExpandedProperty, OnNavigationViewItemExpandedPropertyChanged);
+					nvi.EventRevoker.Disposable = Disposable.Create(() =>
+					{
+						nvi.Tapped -= OnNavigationViewItemTapped;
+						nvi.KeyDown -= OnNavigationViewItemKeyDown;
+						nvi.GotFocus -= OnNavigationViewItemOnGotFocus;
+						nvi.UnregisterPropertyChangedCallback(NavigationViewItemBase.IsSelectedProperty, isSelectedSubscription);
+						nvi.UnregisterPropertyChangedCallback(NavigationViewItem.IsExpandedProperty, isExpandedSubscription);
+					});
 				}
 			}
 		}
@@ -1368,7 +1368,7 @@ namespace Microsoft.UI.Xaml.Controls
 				if (nvib is NavigationViewItem nvi)
 				{
 					// Revoke all the events that we were listing to on the item
-					nvi.SetValue(NavigationViewItemRevokersProperty, null);
+					nvi.EventRevoker.Disposable = null;
 				}
 			}
 		}

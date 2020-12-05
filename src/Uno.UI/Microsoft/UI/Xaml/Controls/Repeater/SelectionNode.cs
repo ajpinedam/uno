@@ -59,7 +59,7 @@ namespace Microsoft.UI.Xaml.Controls
 
 		private int RealizedChildrenNodeCount() => m_realizedChildrenNodeCount;
 
-		internal int AnchorIndex { get; set; }
+		internal int AnchorIndex { get; set; } = -1;
 
 		private IndexPath IndexPath
 		{
@@ -71,11 +71,11 @@ namespace Microsoft.UI.Xaml.Controls
 				while (parent != null)
 				{
 					var childNodes = parent.m_childrenNodes;
-					var it = std.find_if(childNodes.cbegin(), childNodes.cend(), [&child](var item) { return item == child; });
-					var index = (int)(distance(childNodes.cbegin(), it));
+					var it = childNodes.IndexOf(child);
+					var index = it;
 					Debug.Assert(index >= 0);
 					// we are walking up to the parent, so the path will be backwards
-					path.insert(path.begin(), index);
+					path.Insert(0, index);
 					child = parent;
 					parent = parent.m_parent;
 				}
@@ -127,7 +127,7 @@ namespace Microsoft.UI.Xaml.Controls
 
 					else
 					{
-						child = m_manager.SharedLeafNode();
+						child = m_manager.SharedLeafNode;
 					}
 
 					m_childrenNodes[index] = child;
@@ -178,10 +178,10 @@ namespace Microsoft.UI.Xaml.Controls
 			if (m_parent != null)
 			{
 				var parentsChildren = m_parent.m_childrenNodes;
-				var it = std.find_if(parentsChildren.cbegin(), parentsChildren.cend(), [this](std.SelectionNode & node) { return node == this; });
-				if (it != parentsChildren.end())
+				var it = parentsChildren.IndexOf(this);
+				if (it >= 0)
 				{
-					var myIndexInParent = (int)(it - parentsChildren.begin());
+					var myIndexInParent = it;
 					isSelected = m_parent.IsSelectedWithPartial(myIndexInParent);
 				}
 			}
@@ -595,7 +595,7 @@ namespace Microsoft.UI.Xaml.Controls
 			return selectionInvalidated;
 		}
 
-		bool OnItemsRemoved(int index, int count)
+		private bool OnItemsRemoved(int index, int count)
 		{
 			bool selectionInvalidated = false;
 			// Remove the items from the selection for leaf
@@ -642,7 +642,7 @@ namespace Microsoft.UI.Xaml.Controls
 						{
 							m_realizedChildrenNodeCount--;
 						}
-						m_childrenNodes.erase(m_childrenNodes.begin() + index);
+						m_childrenNodes.RemoveAt(index);
 					}
 				}
 

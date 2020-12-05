@@ -9,7 +9,7 @@ namespace Microsoft.UI.Xaml.Controls
 {
 	public partial class SelectionModel : INotifyPropertyChanged, ICustomPropertyProvider
 	{
-		SelectionModel()
+		public SelectionModel()
 		{
 			// Parent is null for root node.
 			m_rootNode = new SelectionNode(this, null /* parent */);

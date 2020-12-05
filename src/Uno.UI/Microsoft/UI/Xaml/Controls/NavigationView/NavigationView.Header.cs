@@ -149,9 +149,9 @@ namespace Microsoft.UI.Xaml.Controls
 		private bool m_blockNextClosingEvent = false;
 		private bool m_initialListSizeStateSet = false;
 
-		private TopNavigationViewDataProvider m_topDataProvider = new TopNavigationViewDataProvider(this);
+		private TopNavigationViewDataProvider m_topDataProvider;
 
-		private SelectionModel m_selectionModel = null;
+		private SelectionModel m_selectionModel = new SelectionModel();
 		private IList<object> m_selectionModelSource = null;
 
 		private ItemsSourceView m_menuItemsSource = null;
