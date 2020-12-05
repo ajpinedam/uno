@@ -7,12 +7,10 @@ namespace Microsoft.UI.Xaml.Controls.Primitives
 	{
 		private double m_compactPaneLengthValue = 40;
 
-		private NavigationViewItemHelper<NavigationViewItemPresenter> m_helper = this;
+		private NavigationViewItemHelper<NavigationViewItemPresenter> m_helper;
 
 		private Grid m_contentGrid = null;
 		private Grid m_expandCollapseChevron = null;
-
-		winrt::event_token m_expandCollapseChevronTappedToken { };
 
 		private double m_leftIndentation = 0;
 

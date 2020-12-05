@@ -24,7 +24,8 @@ namespace Microsoft.UI.Xaml.Controls.Primitives
 		{
 			//IControlProtected controlProtected = this;
 
-			// Retrieve pointers to stable controls 
+			// Retrieve pointers to stable controls
+			m_helper = new NavigationViewItemHelper<NavigationViewItemPresenter>(this);
 			m_helper.Init(this);
 
 			var contentGrid = GetTemplateChild(c_contentGrid) as Grid;
@@ -40,7 +41,7 @@ namespace Microsoft.UI.Xaml.Controls.Primitives
 				if (expandCollapseChevron != null)
 				{
 					m_expandCollapseChevron = expandCollapseChevron;
-					m_expandCollapseChevronTappedToken = expandCollapseChevron.Tapped += navigationViewItem.OnExpandCollapseChevronTapped;
+					expandCollapseChevron.Tapped += navigationViewItem.OnExpandCollapseChevronTapped;
 				}
 				navigationViewItem.UpdateVisualStateNoTransition();
 
