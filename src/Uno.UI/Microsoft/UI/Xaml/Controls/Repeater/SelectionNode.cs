@@ -8,18 +8,21 @@ namespace Microsoft.UI.Xaml.Controls
 {
 	internal partial class SelectionNode
 	{
-		//		SelectionNode(SelectionModel* manager, SelectionNode* parent) :
+		internal SelectionNode(SelectionModel manager, SelectionNode parent)
+		{
+			m_manager = manager;
+			m_parent = parent;
+			// TODO: MZ: What?
+			//m_source = manager;
+			//m_dataSource = manager;
+			m_source = null;
+			m_dataSource = null;
+		}
 
-		//	m_manager(manager), m_parent(parent), m_source(manager), m_dataSource(manager)
-		//		{
-		//			m_source = null;
-		//			m_dataSource = null;
-		//		}
-
-		//		SelectionNode.~SelectionNode()
-		//		{
-		//			UnhookCollectionChangedHandler();
-		//		}
+		~SelectionNode()
+		{
+			UnhookCollectionChangedHandler();
+		}
 
 		internal object Source
 		{
@@ -52,7 +55,7 @@ namespace Microsoft.UI.Xaml.Controls
 
 		internal int DataCount => m_dataSource == null ? 0 : m_dataSource.Count;
 
-		private int ChildrenNodeCount => (int)(m_childrenNodes.Count);
+		internal int ChildrenNodeCount => (int)(m_childrenNodes.Count);
 
 		private int RealizedChildrenNodeCount() => m_realizedChildrenNodeCount;
 
@@ -197,7 +200,7 @@ namespace Microsoft.UI.Xaml.Controls
 			if (m_childrenNodes.Count == 0 || // no nodes realized
 				(int)(m_childrenNodes.Count) <= index || // target node is not realized 
 				m_childrenNodes[index] == null || // target node is not realized
-				m_childrenNodes[index] == m_manager.SharedLeafNode())  // target node is a leaf node.
+				m_childrenNodes[index] == m_manager.SharedLeafNode)  // target node is a leaf node.
 			{
 				// Ask parent if the target node is selected.
 				selectionState = IsSelected(index) ? SelectionState.Selected : SelectionState.NotSelected;

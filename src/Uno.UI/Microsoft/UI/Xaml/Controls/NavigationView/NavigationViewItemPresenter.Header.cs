@@ -9,8 +9,8 @@ namespace Microsoft.UI.Xaml.Controls.Primitives
 
 		private NavigationViewItemHelper<NavigationViewItemPresenter> m_helper = this;
 
-		private Grid m_contentGrid = this;
-		private Grid m_expandCollapseChevron = this;
+		private Grid m_contentGrid = null;
+		private Grid m_expandCollapseChevron = null;
 
 		winrt::event_token m_expandCollapseChevronTappedToken { };
 

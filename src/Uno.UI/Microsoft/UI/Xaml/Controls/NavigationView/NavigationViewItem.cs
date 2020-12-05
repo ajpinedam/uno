@@ -1,19 +1,19 @@
 ﻿using System.Collections.Generic;
 using System.Collections.Specialized;
+using Microsoft.UI.Xaml.Controls.Primitives;
+using Uno.Disposables;
 using Uno.UI.Helpers.WinUI;
 using Windows.Foundation;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Automation;
 using Windows.UI.Xaml.Automation.Peers;
 using Windows.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Controls.Primitives;
 using Windows.UI.Xaml.Hosting;
 using Windows.UI.Xaml.Input;
+using static Microsoft.UI.Xaml.Controls._Tracing;
 using FlyoutBase = Windows.UI.Xaml.Controls.Primitives.FlyoutBase;
 using FlyoutBaseClosingEventArgs = Windows.UI.Xaml.Controls.Primitives.FlyoutBaseClosingEventArgs;
-using NavigationViewAutomationPeer = Microsoft.UI.Xaml.Automation.Peers.NavigationViewAutomationPeer;
 using NavigationViewItemAutomationPeer = Microsoft.UI.Xaml.Automation.Peers.NavigationViewItemAutomationPeer;
-using static Microsoft.UI.Xaml.Controls._Tracing;
 
 namespace Microsoft.UI.Xaml.Controls
 {
@@ -72,7 +72,7 @@ namespace Microsoft.UI.Xaml.Controls
 
 			UnhookEventsAndClearFields();
 
-			NavigationViewItemBase.OnApplyTemplate();
+			base.OnApplyTemplate();
 
 			// Find selection indicator
 			// Retrieve pointers to stable controls 
@@ -87,24 +87,32 @@ namespace Microsoft.UI.Xaml.Controls
 				var flyoutBase = FlyoutBase.GetAttachedFlyout(rootGrid);
 				if (flyoutBase != null)
 				{
-					m_flyoutClosingRevoker = flyoutBase.Closing += OnFlyoutClosing;
+					flyoutBase.Closing += OnFlyoutClosing;
+					m_flyoutClosingRevoker.Disposable = Disposable.Create(() => flyoutBase.Closing -= OnFlyoutClosing);
 				}
 			}
 
-			HookInputEvents(controlProtected);
+			HookInputEvents();
 
-			m_isEnabledChangedRevoker = IsEnabledChanged += OnIsEnabledChanged;
+			IsEnabledChanged += OnIsEnabledChanged;
+			m_isEnabledChangedRevoker.Disposable = Disposable.Create(() => IsEnabledChanged -= OnIsEnabledChanged);
 
 			m_toolTip = (ToolTip)GetTemplateChild("ToolTip");
 
 			var splitView = GetSplitView(); if (splitView != null)
 			{
-				m_splitViewIsPaneOpenChangedRevoker = splitView.RegisterPropertyChangedCallback(
+				var splitViewIsPaneOpenChangedSubscription = splitView.RegisterPropertyChangedCallback(
 					SplitView.IsPaneOpenProperty, OnSplitViewPropertyChanged);
-				m_splitViewDisplayModeChangedRevoker = splitView.RegisterPropertyChangedCallback(
+				m_splitViewIsPaneOpenChangedRevoker.Disposable = Disposable.Create(
+					() => splitView.UnregisterPropertyChangedCallback(SplitView.IsPaneOpenProperty, splitViewIsPaneOpenChangedSubscription));
+				var splitViewDisplayModeChangedSubscription = splitView.RegisterPropertyChangedCallback(
 					SplitView.DisplayModeProperty, OnSplitViewPropertyChanged);
-				m_splitViewCompactPaneLengthChangedRevoker = splitView.RegisterPropertyChangedCallback(
+				m_splitViewDisplayModeChangedRevoker.Disposable = Disposable.Create(
+					() => splitView.UnregisterPropertyChangedCallback(SplitView.DisplayModeProperty, splitViewDisplayModeChangedSubscription));
+				var splitViewCompactPaneLengthSubsctiption = splitView.RegisterPropertyChangedCallback(
 					SplitView.CompactPaneLengthProperty, OnSplitViewPropertyChanged);
+				m_splitViewCompactPaneLengthChangedRevoker.Disposable = Disposable.Create(
+					() => splitView.UnregisterPropertyChangedCallback(SplitView.CompactPaneLengthProperty, splitViewCompactPaneLengthSubsctiption));
 
 				UpdateCompactPaneLength();
 				UpdateIsClosedCompact();
@@ -120,8 +128,10 @@ namespace Microsoft.UI.Xaml.Controls
 					m_repeater = repeater;
 
 					// Primary element setup happens in NavigationView
-					m_repeaterElementPreparedRevoker = repeater.ElementPrepared += nvImpl.OnRepeaterElementPrepared;
-					m_repeaterElementClearingRevoker = repeater.ElementClearing += nvImpl.OnRepeaterElementClearing;
+					repeater.ElementPrepared += nvImpl.OnRepeaterElementPrepared;
+					m_repeaterElementPreparedRevoker.Disposable = Disposable.Create(() => repeater.ElementPrepared -= nvImpl.OnRepeaterElementPrepared);
+					repeater.ElementClearing += nvImpl.OnRepeaterElementClearing;
+					m_repeaterElementClearingRevoker.Disposable = Disposable.Create(() => repeater.ElementClearing -= nvImpl.OnRepeaterElementClearing);
 
 					repeater.ItemTemplate = nvImpl.GetNavigationViewItemsFactory();
 				}
@@ -161,9 +171,10 @@ namespace Microsoft.UI.Xaml.Controls
 					return MenuItems;
 				}
 				var itemsSource = GetItemsSource();
-				m_itemsSourceViewCollectionChangedRevoker.revoke();
+				m_itemsSourceViewCollectionChangedRevoker.Disposable = null;
 				repeater.ItemsSource = itemsSource;
-				m_itemsSourceViewCollectionChangedRevoker = repeater.ItemsSourceView.CollectionChanged += OnItemsSourceViewChanged;
+				repeater.ItemsSourceView.CollectionChanged += OnItemsSourceViewChanged;
+				m_itemsSourceViewCollectionChangedRevoker.Disposable = Disposable.Create(() => repeater.ItemsSourceView.CollectionChanged -= OnItemsSourceViewChanged);
 			}
 		}
 
@@ -670,7 +681,7 @@ namespace Microsoft.UI.Xaml.Controls
 			}
 		}
 
-		private void PropagateDepthToChildren(int depth)
+		internal void PropagateDepthToChildren(int depth)
 		{
 			var repeater = m_repeater; if (repeater != null)
 			{
@@ -690,7 +701,7 @@ namespace Microsoft.UI.Xaml.Controls
 			}
 		}
 
-		private void OnExpandCollapseChevronTapped(object sender, TappedRoutedEventArgs args)
+		internal void OnExpandCollapseChevronTapped(object sender, TappedRoutedEventArgs args)
 		{
 			IsExpanded = !IsExpanded;
 			args.Handled = true;
@@ -887,7 +898,7 @@ namespace Microsoft.UI.Xaml.Controls
 			UpdateVisualState(true);
 		}
 
-		private void RotateExpandCollapseChevron(bool isExpanded)
+		internal void RotateExpandCollapseChevron(bool isExpanded)
 		{
 			var presenter = GetPresenter(); if (presenter != null)
 			{
@@ -941,76 +952,76 @@ namespace Microsoft.UI.Xaml.Controls
 			MUX_ASSERT(presenter != null);
 
 			// Handlers that set flags are skipped when args.Handled is already True.
-			m_presenterPointerPressedRevoker = presenter.PointerPressed += OnPresenterPointerPressed;
-			m_presenterPointerEnteredRevoker = presenter.PointerEntered += OnPresenterPointerEntered;
-			m_presenterPointerMovedRevoker = presenter.PointerMoved += OnPresenterPointerMoved;
+			presenter.PointerPressed += OnPresenterPointerPressed;
+			m_presenterPointerPressedRevoker.Disposable = Disposable.Create(() => presenter.PointerPressed -= OnPresenterPointerPressed);
+			presenter.PointerEntered += OnPresenterPointerEntered;
+			m_presenterPointerEnteredRevoker.Disposable = Disposable.Create(() => presenter.PointerEntered -= OnPresenterPointerEntered);
+			presenter.PointerMoved += OnPresenterPointerMoved;
+			m_presenterPointerMovedRevoker.Disposable = Disposable.Create(() => presenter.PointerMoved -= OnPresenterPointerMoved);
 
 			// Handlers that reset flags are not skipped when args.Handled is already True to avoid broken states.
-			m_presenterPointerReleasedRevoker = AddRoutedEventHandler<RoutedEventType.PointerReleased>(
-				presenter,
+			var pointerReleasedHandler = new PointerEventHandler(OnPresenterPointerReleased);
+			presenter.AddHandler(
+				UIElement.PointerReleasedEvent,
+				pointerReleasedHandler,
+				true /*handledEventsToo*/);
+			m_presenterPointerReleasedRevoker.Disposable = Disposable.Create(
+				() => presenter.RemoveHandler(UIElement.PointerReleasedEvent, pointerReleasedHandler));
 
+			var pointerExitedHandler = new PointerEventHandler(OnPresenterPointerExited);
+			presenter.AddHandler(
+				UIElement.PointerExitedEvent,
+				pointerExitedHandler,
+				true /*handledEventsToo*/);
+			m_presenterPointerExitedRevoker.Disposable = Disposable.Create(
+				() => presenter.RemoveHandler(UIElement.PointerExitedEvent, pointerExitedHandler));
 
+			var pointerCanceledHandler = new PointerEventHandler(OnPresenterPointerCanceled);
+			presenter.AddHandler(
+				UIElement.PointerCanceledEvent,
+				pointerCanceledHandler,
+				true /*handledEventsToo*/);
+			m_presenterPointerCanceledRevoker.Disposable = Disposable.Create(
+				() => presenter.RemoveHandler(UIElement.PointerCanceledEvent, pointerCanceledHandler));
 
-
-		{ this, OnPresenterPointerReleased
-	},
-        true /*handledEventsToo*/);
-			m_presenterPointerExitedRevoker = AddRoutedEventHandler<RoutedEventType.PointerExited>(
-				presenter,
-
-
-
-
-		{ this, OnPresenterPointerExited },
-        true /*handledEventsToo*/);
-			m_presenterPointerCanceledRevoker = AddRoutedEventHandler<RoutedEventType.PointerCanceled>(
-				presenter,
-
-
-
-
-		{ this, OnPresenterPointerCanceled },
-        true /*handledEventsToo*/);
-			m_presenterPointerCaptureLostRevoker = AddRoutedEventHandler<RoutedEventType.PointerCaptureLost>(
-				presenter,
-
-
-
-
-		{ this, OnPresenterPointerCaptureLost },
-        true /*handledEventsToo*/);
+			var pointerCaptureLostHandler = new PointerEventHandler(OnPresenterPointerCaptureLost);
+			presenter.AddHandler(
+				UIElement.PointerCaptureLostEvent,
+				pointerCaptureLostHandler,
+				true /*handledEventsToo*/);
+			m_presenterPointerCaptureLostRevoker.Disposable = Disposable.Create(
+				() => presenter.RemoveHandler(UIElement.PointerCaptureLostEvent, pointerCaptureLostHandler));
 		}
 
-private void UnhookInputEvents()
-{
-	m_presenterPointerPressedRevoker.revoke();
-	m_presenterPointerEnteredRevoker.revoke();
-	m_presenterPointerMovedRevoker.revoke();
-	m_presenterPointerReleasedRevoker.revoke();
-	m_presenterPointerExitedRevoker.revoke();
-	m_presenterPointerCanceledRevoker.revoke();
-	m_presenterPointerCaptureLostRevoker.revoke();
-}
+		private void UnhookInputEvents()
+		{
+			m_presenterPointerPressedRevoker.Disposable = null;
+			m_presenterPointerEnteredRevoker.Disposable = null;
+			m_presenterPointerMovedRevoker.Disposable = null;
+			m_presenterPointerReleasedRevoker.Disposable = null;
+			m_presenterPointerExitedRevoker.Disposable = null;
+			m_presenterPointerCanceledRevoker.Disposable = null;
+			m_presenterPointerCaptureLostRevoker.Disposable = null;
+		}
 
-private void UnhookEventsAndClearFields()
-{
-	UnhookInputEvents();
+		private void UnhookEventsAndClearFields()
+		{
+			UnhookInputEvents();
 
-	m_flyoutClosingRevoker.revoke();
-	m_splitViewIsPaneOpenChangedRevoker.revoke();
-	m_splitViewDisplayModeChangedRevoker.revoke();
-	m_splitViewCompactPaneLengthChangedRevoker.revoke();
-	m_repeaterElementPreparedRevoker.revoke();
-	m_repeaterElementClearingRevoker.revoke();
-	m_isEnabledChangedRevoker.revoke();
-	m_itemsSourceViewCollectionChangedRevoker.revoke();
+			m_flyoutClosingRevoker.Disposable = null;
+			m_splitViewIsPaneOpenChangedRevoker.Disposable = null;
+			m_splitViewDisplayModeChangedRevoker.Disposable = null;
+			m_splitViewCompactPaneLengthChangedRevoker.Disposable = null;
+			m_repeaterElementPreparedRevoker.Disposable = null;
+			m_repeaterElementClearingRevoker.Disposable = null;
+			m_isEnabledChangedRevoker.Disposable = null;
+			m_itemsSourceViewCollectionChangedRevoker.Disposable = null;
 
-	m_rootGrid = null;
-	m_navigationViewItemPresenter = null;
-	m_toolTip = null;
-	m_repeater = null;
-	m_flyoutContentGrid = null;
-}
-
+			m_rootGrid = null;
+			m_navigationViewItemPresenter = null;
+			m_toolTip = null;
+			m_repeater = null;
+			m_flyoutContentGrid = null;
+		}
 	}
 }

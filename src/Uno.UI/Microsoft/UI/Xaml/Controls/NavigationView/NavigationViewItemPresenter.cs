@@ -40,7 +40,7 @@ namespace Microsoft.UI.Xaml.Controls.Primitives
 				if (expandCollapseChevron != null)
 				{
 					m_expandCollapseChevron = expandCollapseChevron;
-					m_expandCollapseChevronTappedToken = expandCollapseChevron.Tapped += OnExpandCollapseChevronTapped;
+					m_expandCollapseChevronTappedToken = expandCollapseChevron.Tapped += navigationViewItem.OnExpandCollapseChevronTapped;
 				}
 				navigationViewItem.UpdateVisualStateNoTransition();
 

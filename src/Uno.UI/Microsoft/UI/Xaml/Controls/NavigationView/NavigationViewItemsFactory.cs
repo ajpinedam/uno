@@ -5,13 +5,13 @@ using Windows.UI.Xaml.Controls;
 
 namespace Microsoft.UI.Xaml.Controls
 {
-	internal class NavigationViewItemsFactory
+	internal class NavigationViewItemsFactory : ElementFactory
 	{
 		private IElementFactoryShim m_itemTemplateWrapper = null;
 		private NavigationViewItemBase m_settingsItem = null;
 		private List<NavigationViewItem> navigationViewItemPool;
 
-		private void UserElementFactory(object newValue)
+		internal void UserElementFactory(object newValue)
 		{
 			m_itemTemplateWrapper = newValue as IElementFactoryShim;
 			if (m_itemTemplateWrapper == null)
@@ -38,7 +38,7 @@ namespace Microsoft.UI.Xaml.Controls
 
 		// Retrieve the element that will be displayed for a specific data item.
 		// If the resolved element is not derived from NavigationViewItemBase, wrap in a NavigationViewItem before returning.
-		private UIElement GetElementCore(ElementFactoryGetArgs args)
+		protected override UIElement GetElementCore(ElementFactoryGetArgs args)
 		{
 			object GetNewContent(IElementFactoryShim itemTemplateWrapper, NavigationViewItemBase settingsItem)
 			{
@@ -108,7 +108,7 @@ namespace Microsoft.UI.Xaml.Controls
 			return nviImpl;
 		}
 
-		private void RecycleElementCore(ElementFactoryRecycleArgs args)
+		protected override void RecycleElementCore(ElementFactoryRecycleArgs args)
 		{
 			var element = args.Element;
 			if (element != null)
