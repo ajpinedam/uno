@@ -780,7 +780,7 @@ namespace Microsoft.UI.Xaml.Controls
 			}
 
 			m_menuItemsCollectionChangedRevoker.Disposable = null;
-			m_menuItemsSource = new ItemsSourceView(itemsSource);
+			m_menuItemsSource = new InspectingDataSource(itemsSource);
 			m_menuItemsSource.CollectionChanged += OnMenuItemsSourceCollectionChanged;
 			m_menuItemsCollectionChangedRevoker.Disposable = Disposable.Create(() => m_menuItemsSource.CollectionChanged -= OnMenuItemsSourceCollectionChanged);
 
@@ -904,7 +904,7 @@ namespace Microsoft.UI.Xaml.Controls
 
 				if (m_footerItemsSource == null)
 				{
-					m_footerItemsSource = new ItemsSourceView(itemsSource);
+					m_footerItemsSource = new InspectingDataSource(itemsSource);
 					m_footerItemsSource.CollectionChanged += OnFooterItemsSourceCollectionChanged;
 					m_footerItemsCollectionChangedRevoker.Disposable = Disposable.Create(() => m_footerItemsSource.CollectionChanged -= OnFooterItemsSourceCollectionChanged);
 				}
@@ -2142,6 +2142,7 @@ namespace Microsoft.UI.Xaml.Controls
 						areElementsAtSameDepth = prevPosPoint.X == nextPosPoint.X;
 					}
 
+#if !IS_UNO // disable animations for now
 					Visual visual = ElementCompositionPreview.GetElementVisual(this);
 					CompositionScopedBatch scopedBatch = visual.Compositor.CreateScopedBatch(CompositionBatchTypes.Animation);
 
@@ -2188,15 +2189,20 @@ namespace Microsoft.UI.Xaml.Controls
 					}
 
 					scopedBatch.End();
+#endif
 					m_prevIndicator = prevIndicator;
 					m_nextIndicator = nextIndicator;
 
+#if !IS_UNO // disable animations for now
 					void OnCompleted(object sender, CompositionBatchCompletedEventArgs args)
 					{
 						this.OnAnimationComplete(sender, args);
 						scopedBatch.Completed -= OnCompleted;
 					}
 					scopedBatch.Completed += OnCompleted;
+#else
+					OnAnimationComplete(null, null);
+#endif
 				}
 				else
 				{
@@ -3959,12 +3965,12 @@ namespace Microsoft.UI.Xaml.Controls
 
 		private double GetPaneToggleButtonWidth()
 		{
-			return (double)SharedHelpers.FindInApplicationResources("PaneToggleButtonWidth", c_paneToggleButtonWidth);
+			return Convert.ToDouble(SharedHelpers.FindInApplicationResources("PaneToggleButtonWidth", c_paneToggleButtonWidth));
 		}
 
 		private double GetPaneToggleButtonHeight()
 		{
-			return (double)SharedHelpers.FindInApplicationResources("PaneToggleButtonHeight", c_paneToggleButtonHeight);
+			return Convert.ToDouble(SharedHelpers.FindInApplicationResources("PaneToggleButtonHeight", c_paneToggleButtonHeight));
 		}
 
 		private void UpdateTopNavigationWidthCache()
@@ -4917,6 +4923,7 @@ namespace Microsoft.UI.Xaml.Controls
 		// of space give and the length of the strings involved. It occurs upon re-rendering.
 		internal static void CreateAndAttachHeaderAnimation(Visual visual)
 		{
+#if !IS_UNO
 			var compositor = visual.Compositor;
 			var cubicFunction = compositor.CreateCubicBezierEasingFunction(new Vector2(0.0f, 0.35f), new Vector2(0.15f, 1.0f));
 			var moveAnimation = compositor.CreateVector3KeyFrameAnimation();
@@ -4927,6 +4934,7 @@ namespace Microsoft.UI.Xaml.Controls
 			var collection = compositor.CreateImplicitAnimationCollection();
 			collection.Add("Offset", moveAnimation);
 			visual.ImplicitAnimations = collection;
+#endif
 		}
 
 		private bool IsFullScreenOrTabletMode()
@@ -5164,7 +5172,7 @@ namespace Microsoft.UI.Xaml.Controls
 					var newDataSource = childrenData as ItemsSourceView;
 					if (childrenData != null && newDataSource == null)
 					{
-						newDataSource = new ItemsSourceView(childrenData);
+						newDataSource = new InspectingDataSource(childrenData);
 					}
 
 					for (int i = 0; i < newDataSource.Count; i++)
@@ -5639,7 +5647,7 @@ namespace Microsoft.UI.Xaml.Controls
 								var newDataSource = childrenData as ItemsSourceView;
 								if (childrenData != null && newDataSource == null)
 								{
-									newDataSource = new ItemsSourceView(childrenData);
+									newDataSource = new InspectingDataSource(childrenData);
 								}
 
 								var data = newDataSource.GetAt(nextContainerIndex);

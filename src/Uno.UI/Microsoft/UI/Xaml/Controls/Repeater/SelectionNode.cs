@@ -40,7 +40,7 @@ namespace Microsoft.UI.Xaml.Controls
 					var newDataSource = value as ItemsSourceView;
 					if (value != null && newDataSource == null)
 					{
-						newDataSource = new ItemsSourceView(value);
+						newDataSource = new InspectingDataSource(value);
 					}
 
 					m_dataSource = newDataSource;

@@ -39,7 +39,7 @@ namespace Microsoft.UI.Xaml.Controls
 				ItemsSourceView dataSource = null;
 				if (rawData != null)
 				{
-					dataSource = new ItemsSourceView(rawData);
+					dataSource = new InspectingDataSource(rawData);
 				}
 				ChangeDataSource(dataSource);
 				m_rawDataSource = rawData;
