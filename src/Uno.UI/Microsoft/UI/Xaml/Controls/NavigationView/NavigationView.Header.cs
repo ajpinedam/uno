@@ -91,7 +91,6 @@ namespace Microsoft.UI.Xaml.Controls
 
 		private NavigationViewItem m_lastItemExpandedIntoFlyout;
 
-
 		// Event Tokens
 		private readonly SerialDisposable m_paneToggleButtonClickRevoker = new SerialDisposable();
 		private readonly SerialDisposable m_paneSearchButtonClickRevoker = new SerialDisposable();

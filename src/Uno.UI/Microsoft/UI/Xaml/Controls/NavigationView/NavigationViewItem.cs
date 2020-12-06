@@ -99,7 +99,8 @@ namespace Microsoft.UI.Xaml.Controls
 
 			m_toolTip = (ToolTip)GetTemplateChild("ToolTip");
 
-			var splitView = GetSplitView(); if (splitView != null)
+			var splitView = GetSplitView();
+			if (splitView != null)
 			{
 				var splitViewIsPaneOpenChangedSubscription = splitView.RegisterPropertyChangedCallback(
 					SplitView.IsPaneOpenProperty, OnSplitViewPropertyChanged);
