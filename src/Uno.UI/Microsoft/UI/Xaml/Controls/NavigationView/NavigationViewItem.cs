@@ -214,7 +214,7 @@ namespace Microsoft.UI.Xaml.Controls
 			var splitView = GetSplitView();
 			if (splitView != null)
 			{
-				SetValue(CompactPaneLengthProperty, PropertyValue.CreateDouble(splitView.CompactPaneLength));
+				SetValue(CompactPaneLengthProperty, splitView.CompactPaneLength); //PropertyValue.CreateDouble(splitView.CompactPaneLength));
 
 				// Only update when on left
 				var presenter = GetPresenter();
@@ -492,7 +492,7 @@ namespace Microsoft.UI.Xaml.Controls
 		}
 
 		// TODO: Override?
-		private void UpdateVisualState(bool useTransitions)
+		private new void UpdateVisualState(bool useTransitions)
 		{
 			if (!m_appliedTemplate)
 				return;
@@ -594,7 +594,8 @@ namespace Microsoft.UI.Xaml.Controls
 
 		internal void ShowHideChildren()
 		{
-			var repeater = m_repeater; if (repeater != null)
+			var repeater = m_repeater;
+			if (repeater != null)
 			{
 				bool shouldShowChildren = IsExpanded;
 				var visibility = shouldShowChildren ? Visibility.Visible : Visibility.Collapsed;

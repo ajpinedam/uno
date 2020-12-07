@@ -1,5 +1,6 @@
 ﻿using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
+using Windows.UI.Xaml.Media;
 
 namespace Microsoft.UI.Xaml.Controls
 {
@@ -10,7 +11,7 @@ namespace Microsoft.UI.Xaml.Controls
 			get => m_position;
 			set
 			{
-				if ( m_position != value)
+				if (m_position != value)
 				{
 					m_position = value;
 					OnNavigationViewItemBasePositionChanged();
@@ -20,11 +21,22 @@ namespace Microsoft.UI.Xaml.Controls
 
 		internal NavigationView GetNavigationView()
 		{
+			// Uno specific - if m_navigationView is not set
+			// try to search ancestor tree
+			if (m_navigationView == null)
+			{
+				m_navigationView = FindAncestorNavigationView();
+			}
+
 			return m_navigationView;
 		}
 
-		// TODO: no specific: existing Depth property inherited from base class
-		internal new int Depth
+		// TODO: Uno specific: existing Depth property inherited from base class
+		internal
+#if !__ANDROID__
+			new
+#endif
+			int Depth
 		{
 			get => m_depth;
 			set
@@ -60,5 +72,20 @@ namespace Microsoft.UI.Xaml.Controls
 				OnNavigationViewItemBaseIsSelectedChanged();
 			}
 		}
+
+		#region Uno specific
+
+		private NavigationView FindAncestorNavigationView()
+		{
+			DependencyObject currentElement = this;
+			do
+			{
+				currentElement = VisualTreeHelper.GetParent(currentElement);
+			} while (currentElement != null && !(currentElement is NavigationView));
+
+			return (NavigationView)currentElement;
+		}
+
+		#endregion
 	}
 }

@@ -4,7 +4,7 @@ using Windows.UI.Xaml.Controls;
 
 namespace Microsoft.UI.Xaml.Controls
 {
-	public class NavigationViewItemSeparator : NavigationViewItemBase
+	public partial class NavigationViewItemSeparator : NavigationViewItemBase
 	{
 		private bool m_appliedTemplate = false;
 		private bool m_isClosedCompact = false;

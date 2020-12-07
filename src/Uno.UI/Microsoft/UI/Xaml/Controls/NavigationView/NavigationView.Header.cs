@@ -44,7 +44,7 @@ namespace Microsoft.UI.Xaml.Controls
 		private FrameworkElement m_menuItemsScrollViewer;
 		private FrameworkElement m_footerItemsScrollViewer;
 		private UIElement m_paneContentGrid;
-		private ColumnDefinition m_paneToggleButtonIconGridColumn;
+		//private ColumnDefinition m_paneToggleButtonIconGridColumn;
 		private FrameworkElement m_paneTitleHolderFrameworkElement;
 		private FrameworkElement m_paneTitleFrameworkElement;
 		private FrameworkElement m_visualItemsSeparator;
