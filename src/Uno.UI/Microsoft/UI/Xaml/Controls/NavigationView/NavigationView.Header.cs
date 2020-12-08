@@ -192,5 +192,16 @@ namespace Microsoft.UI.Xaml.Controls
 		private bool m_OrientationChangedPendingAnimation = false;
 
 		private bool m_TabKeyPrecedesFocusChange = false;
+
+		#region Uno specific
+
+		//TODO: Uno specific - remove when #4689 is fixed
+		private readonly SerialDisposable m_leftNavItemsRepeaterUnoBeforeElementPreparedRevoker = new SerialDisposable();
+		private readonly SerialDisposable m_topNavItemsRepeaterUnoBeforeElementPreparedRevoker = new SerialDisposable();
+		private readonly SerialDisposable m_leftNavFooterMenuItemsRepeaterUnoBeforeElementPreparedRevoker = new SerialDisposable();
+		private readonly SerialDisposable m_topNavFooterMenuItemsRepeaterUnoBeforeElementPreparedRevoker = new SerialDisposable();
+		private readonly SerialDisposable m_topNavOverflowItemsRepeaterUnoBeforeElementPreparedRevoker = new SerialDisposable();
+
+		#endregion
 	}
 }

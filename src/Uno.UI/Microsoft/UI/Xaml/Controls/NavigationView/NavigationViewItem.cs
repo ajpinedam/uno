@@ -67,6 +67,14 @@ namespace Microsoft.UI.Xaml.Controls
 
 		protected override void OnApplyTemplate()
 		{
+			// TODO: Uno specific: NavigationView may not be set yet, wait for later #4689
+			if (GetNavigationView() is null)
+			{
+				_wasApplyTemplateAttempted = true;
+				// Postpone template application for later
+				return;
+			}
+
 			// Stop UpdateVisualState before template is applied. Otherwise the visuals may be unexpected
 			m_appliedTemplate = false;
 
@@ -613,10 +621,12 @@ namespace Microsoft.UI.Xaml.Controls
 
 						// There seems to be a race condition happening which sometimes
 						// prevents the opening of the flyout. Queue callback as a workaround.
-						SharedHelpers.QueueCallbackForCompositionRendering(() =>
-						{
+
+						// TODO: Uno specific - Queue callback for composition rendering is not implemented yet - #4690
+						//SharedHelpers.QueueCallbackForCompositionRendering(() =>
+						//{
 							FlyoutBase.ShowAttachedFlyout(m_rootGrid);
-						});
+						//});
 					}
 					else
 					{

@@ -21,19 +21,12 @@ namespace Microsoft.UI.Xaml.Controls
 
 		internal NavigationView GetNavigationView()
 		{
-			// Uno specific - if m_navigationView is not set
-			// try to search ancestor tree
-			if (m_navigationView == null)
-			{
-				m_navigationView = FindAncestorNavigationView();
-			}
-
 			return m_navigationView;
 		}
 
-		// TODO: Uno specific: existing Depth property inherited from base class
+		// TODO: MZ Uno specific: existing Depth property inherited from base class
 		internal
-#if !__ANDROID__
+#if !__ANDROID__ && !__IOS__
 			new
 #endif
 			int Depth
@@ -63,6 +56,13 @@ namespace Microsoft.UI.Xaml.Controls
 		internal void SetNavigationViewParent(NavigationView navigationView)
 		{
 			m_navigationView = navigationView;
+
+			// TODO: Uno specific: Re-initialize item, as previously the dependencies were not actually accessible
+			// Remove when #4689 is fixed
+			if (_wasApplyTemplateAttempted)
+			{
+				OnApplyTemplate();
+			}
 		}
 
 		private void OnPropertyChanged(DependencyPropertyChangedEventArgs args)
@@ -73,19 +73,9 @@ namespace Microsoft.UI.Xaml.Controls
 			}
 		}
 
-		#region Uno specific
-
-		private NavigationView FindAncestorNavigationView()
-		{
-			DependencyObject currentElement = this;
-			do
-			{
-				currentElement = VisualTreeHelper.GetParent(currentElement);
-			} while (currentElement != null && !(currentElement is NavigationView));
-
-			return (NavigationView)currentElement;
-		}
-
-		#endregion
+#if IS_UNO
+		// TODO: Uno specific: Remove when #4689 is fixed
+		protected bool _wasApplyTemplateAttempted = false;
+#endif
 	}
 }

@@ -19,6 +19,14 @@ namespace Microsoft.UI.Xaml.Controls
 
 		protected override void OnApplyTemplate()
 		{
+			// TODO: Uno specific: NavigationView may not be set yet, wait for later #4689
+			if (GetNavigationView() is null)
+			{
+				_wasApplyTemplateAttempted = true;
+				// Postpone template application for later
+				return;
+			}
+
 			var splitView = GetSplitView();
 			if (splitView != null)
 			{
