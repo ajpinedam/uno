@@ -70,7 +70,6 @@ namespace Microsoft.UI.Xaml.Controls
 			// TODO: Uno specific: NavigationView may not be set yet, wait for later #4689
 			if (GetNavigationView() is null)
 			{
-				_wasApplyTemplateAttempted = true;
 				// Postpone template application for later
 				return;
 			}
@@ -649,7 +648,6 @@ namespace Microsoft.UI.Xaml.Controls
 					if (ShouldRepeaterShowInFlyout() && !m_isRepeaterParentedToFlyout)
 					{
 						// Reparent repeater to flyout
-						// TODO: Replace removeatend with something more specific
 						m_rootGrid.Children.RemoveAt(m_rootGrid.Children.Count - 1);
 						m_flyoutContentGrid.Children.Add(repeater);
 						m_isRepeaterParentedToFlyout = true;

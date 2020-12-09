@@ -38,7 +38,6 @@ namespace Microsoft.UI.Xaml.Controls
 			// TODO: Uno specific: NavigationView may not be set yet, wait for later #4689
 			if (GetNavigationView() is null)
 			{
-				_wasApplyTemplateAttempted = true;
 				// Postpone template application for later
 				return;
 			}

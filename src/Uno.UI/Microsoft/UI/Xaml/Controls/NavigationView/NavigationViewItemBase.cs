@@ -56,13 +56,6 @@ namespace Microsoft.UI.Xaml.Controls
 		internal void SetNavigationViewParent(NavigationView navigationView)
 		{
 			m_navigationView = navigationView;
-
-			// TODO: Uno specific: Re-initialize item, as previously the dependencies were not actually accessible
-			// Remove when #4689 is fixed
-			if (_wasApplyTemplateAttempted)
-			{
-				OnApplyTemplate();
-			}
 		}
 
 		private void OnPropertyChanged(DependencyPropertyChangedEventArgs args)
@@ -75,7 +68,11 @@ namespace Microsoft.UI.Xaml.Controls
 
 #if IS_UNO
 		// TODO: Uno specific: Remove when #4689 is fixed
-		protected bool _wasApplyTemplateAttempted = false;
+
+		internal void Reinitialize()
+		{
+			OnApplyTemplate();
+		}
 #endif
 	}
 }

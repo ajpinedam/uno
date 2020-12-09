@@ -110,8 +110,6 @@ namespace Microsoft.UI.Xaml.Controls
 
 		internal void UnhookEventsAndClearFields(bool isFromDestructor = false)
 		{
-			//TODO: MZ: Implement
-
 			m_titleBarMetricsChangedRevoker.Disposable = null;
 			m_titleBarIsVisibleChangedRevoker.Disposable = null;
 			m_paneToggleButtonClickRevoker.Disposable = null;
@@ -186,9 +184,10 @@ namespace Microsoft.UI.Xaml.Controls
 
 		public NavigationView()
 		{
+#if IS_UNO
 			// Uno specific - need to initialize here to be able to use "this"
 			m_topDataProvider = new TopNavigationViewDataProvider(this);
-			//__RP_Marker_ClassById(RuntimeProfiler.ProfId_NavigationView);
+#endif
 			SetValue(TemplateSettingsProperty, new NavigationViewTemplateSettings());
 			DefaultStyleKey = typeof(NavigationView);
 
@@ -1368,6 +1367,9 @@ namespace Microsoft.UI.Xaml.Controls
 						nvi.UnregisterPropertyChangedCallback(NavigationViewItem.IsExpandedProperty, isExpandedSubscription);
 					});
 				}
+
+				// TODO: Uno specific - remove when #4689 is fixed
+				nvibImpl.Reinitialize();
 			}
 		}
 
