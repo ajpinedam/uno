@@ -3533,8 +3533,7 @@ namespace Microsoft.UI.Xaml.Controls
 			}
 		}
 
-		//TODO MZ: Override?
-		private new void UpdateVisualState(bool useTransitions)
+		private new void UpdateVisualState(bool useTransitions = false)
 		{
 			if (m_appliedTemplate)
 			{

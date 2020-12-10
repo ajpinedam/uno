@@ -67,7 +67,7 @@ namespace MUXControlsTestApp.Utilities
 
 		public static T FindVisualParentByType<T>(this DependencyObject element)
 			where T :
-#if IS_UNO
+#if HAS_UNO
 			class,
 #endif
 			DependencyObject
