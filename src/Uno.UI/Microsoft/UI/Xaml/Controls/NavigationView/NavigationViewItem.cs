@@ -1,4 +1,6 @@
-﻿using System.Collections.Generic;
+﻿// MUX reference NavigationViewItem.cpp, commit 4fe1fd5
+
+using System.Collections.Generic;
 using System.Collections.Specialized;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Uno.Disposables;

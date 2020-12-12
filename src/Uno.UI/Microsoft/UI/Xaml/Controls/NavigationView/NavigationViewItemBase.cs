@@ -26,7 +26,7 @@ namespace Microsoft.UI.Xaml.Controls
 
 		// TODO: MZ Uno specific: existing Depth property inherited from base class
 		internal
-#if !__ANDROID__ && !__IOS__
+#if !__ANDROID__ && !__IOS__ && !NET461
 			new
 #endif
 			int Depth
