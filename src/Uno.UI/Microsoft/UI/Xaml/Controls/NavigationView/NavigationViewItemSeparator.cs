@@ -68,6 +68,8 @@ namespace Microsoft.UI.Xaml.Controls
 			m_appliedTemplate = true;
 			UpdateVisualState(false /*useTransition*/);
 			UpdateItemIndentation();
+
+			_fullyInitialized = true;
 		}
 
 		protected override void OnNavigationViewItemBaseDepthChanged()

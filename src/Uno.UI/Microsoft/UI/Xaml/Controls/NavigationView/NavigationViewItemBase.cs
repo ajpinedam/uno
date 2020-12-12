@@ -69,9 +69,14 @@ namespace Microsoft.UI.Xaml.Controls
 #if IS_UNO
 		// TODO: Uno specific: Remove when #4689 is fixed
 
+		protected bool _fullyInitialized = false;
+
 		internal void Reinitialize()
 		{
-			OnApplyTemplate();
+			if (!_fullyInitialized)
+			{
+				OnApplyTemplate();
+			}
 		}
 #endif
 	}

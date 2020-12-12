@@ -51,6 +51,8 @@ namespace Microsoft.UI.Xaml.Controls
 
 			var visual = ElementCompositionPreview.GetElementVisual(this);
 			NavigationView.CreateAndAttachHeaderAnimation(visual);
+
+			_fullyInitialized = true;
 		}
 
 		private void OnSplitViewPropertyChanged(DependencyObject sender, DependencyProperty args)
