@@ -1,4 +1,6 @@
-﻿using Uno.UI.Helpers.WinUI;
+﻿// MUX Reference NavigationViewItemSeparator.cpp, commit 2ec9b1c
+
+using Uno.UI.Helpers.WinUI;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
 
