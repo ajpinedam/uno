@@ -11,6 +11,7 @@ using Windows.ApplicationModel.Core;
 using Windows.UI.ViewManagement;
 #if HAS_UNO_WINUI
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml;
 using Microsoft.UI.Composition;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Automation.Peers;

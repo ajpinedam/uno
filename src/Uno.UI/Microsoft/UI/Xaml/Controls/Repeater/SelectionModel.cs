@@ -7,7 +7,7 @@ using static Microsoft.UI.Xaml.Controls._Tracing;
 
 namespace Microsoft.UI.Xaml.Controls
 {
-	public partial class SelectionModel : INotifyPropertyChanged, ICustomPropertyProvider
+	public partial class SelectionModel : System.ComponentModel.INotifyPropertyChanged, ICustomPropertyProvider
 	{
 		public SelectionModel()
 		{
