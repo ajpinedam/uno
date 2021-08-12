@@ -100,6 +100,12 @@ namespace Windows.UI.Xaml.Controls
 		/// </summary>
 		public event EventHandler<ScrollViewerViewChangedEventArgs>? ViewChanged;
 
+
+		/// <summary>
+		/// Occurs when manipulations such as scrolling and zooming is causing the view to change.
+		/// </summary>
+		public event EventHandler<ScrollViewerViewChangingEventArgs> ViewChanging;
+
 		static ScrollViewer()
 		{
 #if !NET461
