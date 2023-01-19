@@ -124,7 +124,7 @@
       <Version>6.2.8</Version>
     </PackageReference>
     <PackageReference Include="Uno.Core">
-      <Version>2.2.0</Version>
+      <Version>4.0.1</Version>
     </PackageReference>
   </ItemGroup>
   <ItemGroup>
