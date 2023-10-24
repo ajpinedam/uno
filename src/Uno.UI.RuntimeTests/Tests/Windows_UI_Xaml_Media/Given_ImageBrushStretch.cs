@@ -5,12 +5,12 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Private.Infrastructure;
 using Uno.UI.RuntimeTests.Helpers;
 using Windows.Foundation.Metadata;
-using Windows.UI.Xaml;
-using Windows.UI.Xaml.Controls;
-using Windows.UI.Xaml.Media;
-using Windows.UI.Xaml.Media.Imaging;
+using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Imaging;
 using static Private.Infrastructure.TestServices;
-using ImageBrush = Windows.UI.Xaml.Media.ImageBrush;
+using ImageBrush = Microsoft.UI.Xaml.Media.ImageBrush;
 
 
 namespace Uno.UI.RuntimeTests.Tests.Windows_UI_Xaml_Media
@@ -38,7 +38,7 @@ namespace Uno.UI.RuntimeTests.Tests.Windows_UI_Xaml_Media
 			const string Greenish = "#FF0ED145";
 			const string Transparent = "#00000000";
 
-			if (!ApiInformation.IsTypePresent("Windows.UI.Xaml.Media.Imaging.RenderTargetBitmap"))
+			if (!ApiInformation.IsTypePresent("Microsoft.UI.Xaml.Media.Imaging.RenderTargetBitmap"))
 			{
 				Assert.Inconclusive(); // System.NotImplementedException: RenderTargetBitmap is not supported on this platform.;
 			}

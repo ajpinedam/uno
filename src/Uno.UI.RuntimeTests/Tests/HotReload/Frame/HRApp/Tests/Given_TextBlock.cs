@@ -5,7 +5,7 @@ using System.Formats.Asn1;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.UI.Xaml;
-using Windows.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls;
 using Uno.Disposables;
 using Uno.UI.RemoteControl;
 using Uno.UI.RuntimeTests.Tests.HotReload.Frame.Pages;

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Threading.Tasks;
 
 namespace Uno.UWPSyncGenerator
@@ -56,7 +56,7 @@ namespace Uno.UWPSyncGenerator
 				await new SyncGenerator().Build(@"..\..\..\Uno.UI.Composition", "Uno.UI.Composition", "Windows.Foundation.UniversalApiContract");
 				await new SyncGenerator().Build(@"..\..\..\Uno.UI.Dispatching", "Uno.UI.Dispatching", "Windows.Foundation.UniversalApiContract");
 				await new SyncGenerator().Build(@"..\..\..\Uno.UI", "Uno.UI", "Windows.Foundation.UniversalApiContract");
-				await new SyncGenerator().Build(@"..\..\..\Uno.UI", "Uno.UI", "Windows.UI.Xaml.Hosting.HostingContract");
+				await new SyncGenerator().Build(@"..\..\..\Uno.UI", "Uno.UI", "Microsoft.UI.Xaml.Hosting.HostingContract");
 				await new SyncGenerator().Build(@"..\..\..\Uno.UI", "Uno.UI", "Microsoft.UI.Xaml");
 				await new SyncGenerator().Build(@"..\..\..\Uno.UI", "Uno.UI", "Microsoft.Web.WebView2.Core");
 #endif

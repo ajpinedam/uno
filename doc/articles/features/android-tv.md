@@ -1,4 +1,4 @@
----
+﻿---
 uid: Uno.Features.AndroidTv
 ---
 
@@ -24,7 +24,7 @@ First, open the `MainActivity` class in the `YourApp.Mobile` project (or the `Yo
     Android.Content.Intent.CategoryLauncher,
     Android.Content.Intent.CategoryLeanbackLauncher 
   })]
-public class MainActivity : Windows.UI.Xaml.ApplicationActivity
+public class MainActivity : Microsoft.UI.Xaml.ApplicationActivity
 {
   ...
 }

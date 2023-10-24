@@ -1,9 +1,9 @@
-#nullable enable
+﻿#nullable enable
 
 using SkiaSharp;
 using Uno.UI.Composition;
 
-namespace Windows.UI.Composition
+namespace Microsoft.UI.Composition
 {
 	public partial class SpriteVisual : ContainerVisual
 	{

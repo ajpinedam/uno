@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Linq;
-using Windows.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls;
 using Uno.UI.Samples.Controls;
 
 using SwipeItem = Microsoft.UI.Xaml.Controls.SwipeItem;

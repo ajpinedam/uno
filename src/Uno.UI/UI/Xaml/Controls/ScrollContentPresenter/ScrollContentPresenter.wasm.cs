@@ -1,7 +1,7 @@
 ﻿using Uno.Extensions;
 using Uno.Foundation.Logging;
 using Uno.UI.DataBinding;
-using Windows.UI.Xaml.Data;
+using Microsoft.UI.Xaml.Data;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -15,7 +15,7 @@ using Uno.UI.Xaml;
 using Uno.UI.Extensions;
 using Uno.UI.Xaml.Input;
 
-namespace Windows.UI.Xaml.Controls
+namespace Microsoft.UI.Xaml.Controls
 {
 	public partial class ScrollContentPresenter : ContentPresenter, IScrollContentPresenter
 	{

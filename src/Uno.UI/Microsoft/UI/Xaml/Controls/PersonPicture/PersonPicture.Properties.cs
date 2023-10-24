@@ -1,11 +1,11 @@
-// MUX Reference PersonPicture.properties.cpp, commit de78834
+﻿// MUX Reference PersonPicture.properties.cpp, commit de78834
 
 #pragma warning disable 108 // new keyword hiding
 #pragma warning disable 114 // new keyword hiding
 using Windows.System.UserProfile;
-using Windows.UI.Xaml;
-using Windows.UI.Xaml.Controls;
-using Windows.UI.Xaml.Media;
+using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
 using Windows.ApplicationModel.Contacts;
 using System;
 

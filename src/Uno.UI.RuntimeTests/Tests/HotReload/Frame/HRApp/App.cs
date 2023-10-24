@@ -1,4 +1,4 @@
-#if HAS_UNO_WINUI
+﻿#if HAS_UNO_WINUI
 using LaunchActivatedEventArgs = Microsoft.UI.Xaml.LaunchActivatedEventArgs;
 #else
 using LaunchActivatedEventArgs = Windows.ApplicationModel.Activation.LaunchActivatedEventArgs;
@@ -15,7 +15,7 @@ namespace UnoApp50
 #if NET6_0_OR_GREATER && WINDOWS && !HAS_UNO
 			_window = new Window();
 #else
-			_window = Windows.UI.Xaml.Window.Current;
+			_window = Microsoft.UI.Xaml.Window.Current;
 #endif
 
 			// Do not repeat app initialization when the Window already has content,

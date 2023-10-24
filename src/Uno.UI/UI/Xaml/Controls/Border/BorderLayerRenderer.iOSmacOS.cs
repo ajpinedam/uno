@@ -3,8 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using Windows.Foundation;
 using Windows.UI;
-using Windows.UI.Xaml.Controls;
-using Windows.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
 using CoreAnimation;
 using CoreGraphics;
 using CoreImage;
@@ -31,7 +31,7 @@ using _Image = AppKit.NSImage;
 
 using RadialGradientBrush = Microsoft.UI.Xaml.Media.RadialGradientBrush;
 
-namespace Windows.UI.Xaml.Shapes
+namespace Microsoft.UI.Xaml.Shapes
 {
 	partial class BorderLayerRenderer
 	{

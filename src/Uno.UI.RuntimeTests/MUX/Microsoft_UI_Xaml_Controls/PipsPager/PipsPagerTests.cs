@@ -8,11 +8,11 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Automation.Peers;
 #endif
 using MUXControlsTestApp.Utilities;
-using Windows.UI.Xaml.Automation.Provider;
-using Windows.UI.Xaml.Automation.Peers;
-using Windows.UI.Xaml.Media;
-using Windows.UI.Xaml.Controls;
-using Windows.UI.Xaml.Automation;
+using Microsoft.UI.Xaml.Automation.Provider;
+using Microsoft.UI.Xaml.Automation.Peers;
+using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Automation;
 using Private.Infrastructure;
 using System.Threading.Tasks;
 using Uno.UI.RuntimeTests;
@@ -25,7 +25,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Microsoft.VisualStudio.TestTools.UnitTesting.Logging;
 #endif
 
-namespace Windows.UI.Xaml.Tests.MUXControls.ApiTests
+namespace Microsoft.UI.Xaml.Tests.MUXControls.ApiTests
 {
 	[TestClass]
 	[RequiresFullWindow]

@@ -4,14 +4,14 @@ using Windows.UI;
 using System.Threading.Tasks;
 using Private.Infrastructure;
 using Uno.UI.RuntimeTests.Helpers;
-using Windows.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls;
 #if !HAS_UNO_WINUI
 using Microsoft.UI.Xaml.Controls;
 #endif
-using Windows.UI.Xaml.Media;
-using Windows.UI.Xaml.Controls.Primitives;
-using Windows.UI.Xaml.Data;
-using Windows.UI.Xaml;
+using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Controls.Primitives;
+using Microsoft.UI.Xaml.Data;
+using Microsoft.UI.Xaml;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using TreeView = Microsoft.UI.Xaml.Controls.TreeView;
 using TreeViewItem = Microsoft.UI.Xaml.Controls.TreeViewItem;

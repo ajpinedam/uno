@@ -5,7 +5,7 @@ using System.IO;
 using System.Threading;
 using System.Json;
 using Windows.Storage.Streams;
-using Windows.UI.Xaml.Data;
+using Microsoft.UI.Xaml.Data;
 using Microsoft.UI.Xaml.Controls;
 using Uno.UI.Lottie;
 using Uno.Extensions;

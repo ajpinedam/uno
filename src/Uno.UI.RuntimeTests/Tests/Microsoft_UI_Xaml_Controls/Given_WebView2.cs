@@ -8,7 +8,7 @@ using Microsoft.UI.Xaml.Controls;
 #endif
 using Microsoft.Web.WebView2.Core;
 using Private.Infrastructure;
-using Windows.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls;
 using System.Runtime.CompilerServices;
 using Uno.UI.RuntimeTests.Helpers;
 using FluentAssertions;

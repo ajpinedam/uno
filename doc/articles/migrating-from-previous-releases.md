@@ -1,4 +1,4 @@
----
+﻿---
 uid: Uno.Development.MigratingFromPreviousReleases
 ---
 
@@ -63,7 +63,7 @@ This behavior can be disabled by using `FeatureConfiguration.ResourceDictionary.
 This property was incorrectly located on `FrameworkElement` but its behavior has not changed.
 
 #### Move `SwipeControl`, `SwipeItem`, `SwipeItemInvokedEventArgs`, `SwipeMode`, `SwipeItems`, `SwipeBehaviorOnInvoked`, `MenuBar`, `MenuBarItem`, and `MenuBarItemFlyout` implementation from WUX namespace to MUX namespace.
-These controls were present in both the `Windows.UI.Xaml` and `Microsoft.UI.Xaml`. Those are now located in the `Microsoft.UI.Xaml` namespace for the UWP version of Uno (Uno.UI).
+These controls were present in both the `Microsoft.UI.Xaml` and `Microsoft.UI.Xaml`. Those are now located in the `Microsoft.UI.Xaml` namespace for the UWP version of Uno (Uno.UI).
 
 #### Move `AnimatedVisualPlayer`, `IAnimatedVisualSource `, and `IThemableAnimatedVisualSource` from WUX to MUX and `Microsoft.Toolkit.Uwp.UI.Lottie` namespace to `CommunityToolkit.WinUI.Lottie`
 This change moves the `AnimatedVisualPlayer` to the appropriate namespace for WinUI, aligned with the WinAppSDK version of the Windows Community Toolkit.
@@ -288,22 +288,22 @@ Here's how to upgrade:
                         builder.AddFilter("Microsoft", LogLevel.Warning);
 
                         // Generic Xaml events
-                        // builder.AddFilter("Windows.UI.Xaml", LogLevel.Debug );
-                        // builder.AddFilter("Windows.UI.Xaml.VisualStateGroup", LogLevel.Debug );
-                        // builder.AddFilter("Windows.UI.Xaml.StateTriggerBase", LogLevel.Debug );
-                        // builder.AddFilter("Windows.UI.Xaml.UIElement", LogLevel.Debug );
-                        // builder.AddFilter("Windows.UI.Xaml.FrameworkElement", LogLevel.Trace );
+                        // builder.AddFilter("Microsoft.UI.Xaml", LogLevel.Debug );
+                        // builder.AddFilter("Microsoft.UI.Xaml.VisualStateGroup", LogLevel.Debug );
+                        // builder.AddFilter("Microsoft.UI.Xaml.StateTriggerBase", LogLevel.Debug );
+                        // builder.AddFilter("Microsoft.UI.Xaml.UIElement", LogLevel.Debug );
+                        // builder.AddFilter("Microsoft.UI.Xaml.FrameworkElement", LogLevel.Trace );
 
                         // Layouter specific messages
-                        // builder.AddFilter("Windows.UI.Xaml.Controls", LogLevel.Debug );
-                        // builder.AddFilter("Windows.UI.Xaml.Controls.Layouter", LogLevel.Debug );
-                        // builder.AddFilter("Windows.UI.Xaml.Controls.Panel", LogLevel.Debug );
+                        // builder.AddFilter("Microsoft.UI.Xaml.Controls", LogLevel.Debug );
+                        // builder.AddFilter("Microsoft.UI.Xaml.Controls.Layouter", LogLevel.Debug );
+                        // builder.AddFilter("Microsoft.UI.Xaml.Controls.Panel", LogLevel.Debug );
 
                         // builder.AddFilter("Windows.Storage", LogLevel.Debug );
 
                         // Binding related messages
-                        // builder.AddFilter("Windows.UI.Xaml.Data", LogLevel.Debug );
-                        // builder.AddFilter("Windows.UI.Xaml.Data", LogLevel.Debug );
+                        // builder.AddFilter("Microsoft.UI.Xaml.Data", LogLevel.Debug );
+                        // builder.AddFilter("Microsoft.UI.Xaml.Data", LogLevel.Debug );
 
                         // Binder memory references tracking
                         // builder.AddFilter("Uno.UI.DataBinding.BinderReferenceHolder", LogLevel.Debug );

@@ -3,8 +3,8 @@ using System.Linq;
 using Uno.UI.Extensions;
 using Uno.UI.Helpers;
 using Uno.Xaml;
-using Windows.UI.Xaml;
-using Windows.UI.Xaml.Controls;
+using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
 
 namespace Uno.UI.RuntimeTests.Tests.Windows_UI_Xaml_Markup
 {
@@ -264,7 +264,7 @@ namespace Uno.UI.RuntimeTests.Tests.Windows_UI_Xaml_Markup
 			var sut = setup.FindFirstDescendant<ScrollViewer>(x => x.Name == "SUT");
 			var expr = sut.GetBindingExpression(ScrollViewer.HorizontalScrollModeProperty);
 
-			Assert.AreEqual(expr.ParentBinding.Path.Path, "(Windows.UI.Xaml.Controls:ScrollViewer.HorizontalScrollMode)");
+			Assert.AreEqual(expr.ParentBinding.Path.Path, "(Microsoft.UI.Xaml.Controls:ScrollViewer.HorizontalScrollMode)");
 			Assert.AreEqual(ScrollMode.Disabled, sut.HorizontalScrollMode);
 			ScrollViewer.SetHorizontalScrollMode(setup, ScrollMode.Enabled);
 			Assert.AreEqual(ScrollMode.Enabled, sut.HorizontalScrollMode);

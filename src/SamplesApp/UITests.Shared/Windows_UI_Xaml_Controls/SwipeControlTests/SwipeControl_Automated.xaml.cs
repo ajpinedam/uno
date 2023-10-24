@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Linq;
 using Uno.UI.Samples.Controls;
-using Windows.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls;
 
 using SwipeItem = Microsoft.UI.Xaml.Controls.SwipeItem;
 using SwipeItemInvokedEventArgs = Microsoft.UI.Xaml.Controls.SwipeItemInvokedEventArgs;

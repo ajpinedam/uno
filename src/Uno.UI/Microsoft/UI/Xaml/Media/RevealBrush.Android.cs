@@ -1,6 +1,6 @@
 ﻿using Android.Graphics;
-using Windows.UI.Xaml;
-using Windows.UI.Xaml.Media;
+using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Media;
 using Rect = Windows.Foundation.Rect;
 
 namespace Microsoft.UI.Xaml.Media;

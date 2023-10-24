@@ -1,11 +1,11 @@
-#nullable enable
+﻿#nullable enable
 
 using System;
 using System.Numerics;
 using Uno.UI.Composition;
 using SkiaSharp;
 
-namespace Windows.UI.Composition
+namespace Microsoft.UI.Composition
 {
 	public partial class CompositionSurfaceBrush : CompositionBrush, IOnlineBrush, ISizedBrush
 	{
