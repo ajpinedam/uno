@@ -1,6 +1,7 @@
-﻿// Copyright (c) Microsoft Corporation. All rights reserved.
+// Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License. See LICENSE in the project root for license information.
 // MUX Reference PersonPicture.cpp, tag winui3/release/1.4.2
+#nullable enable
 
 using System;
 using System.Globalization;
@@ -23,38 +24,38 @@ public partial class PersonPicture : Control
 	/// <summary>
 	/// XAML Element for the first TextBlock matching x:Name of InitialsTextBlock.
 	/// </summary>
-	TextBlock m_initialsTextBlock;
+	TextBlock? m_initialsTextBlock;
 
 	/// <summary>
 	/// XAML Element for the first TextBlock matching x:Name of BadgeNumberTextBlock.
 	/// </summary>
-	TextBlock m_badgeNumberTextBlock;
+	TextBlock? m_badgeNumberTextBlock;
 
 	/// <summary>
 	/// XAML Element for the first TextBlock matching x:Name of BadgeGlyphIcon.
 	/// </summary>
-	FontIcon m_badgeGlyphIcon;
+	FontIcon? m_badgeGlyphIcon;
 
 	/// <summary>
 	/// XAML Element for the first ImageBrush matching x:Name of BadgeImageBrush.
 	/// </summary>
-	ImageBrush m_badgeImageBrush;
+	ImageBrush? m_badgeImageBrush;
 
 	/// <summary>
 	/// XAML Element for the first Ellipse matching x:Name of BadgingBackgroundEllipse.
 	/// </summary>
-	Ellipse m_badgingEllipse;
+	Ellipse? m_badgingEllipse;
 
 	/// <summary>
 	/// XAML Element for the first Ellipse matching x:Name of BadgingEllipse.
 	/// </summary>
-	Ellipse m_badgingBackgroundEllipse;
+	Ellipse? m_badgingBackgroundEllipse;
 
 #pragma warning disable CS0649 // Field is never assigned to, and will always have its default value null
 	/// <summary>
 	/// The async operation object representing the loading and assignment of the Thumbnail.
 	/// </summary>
-	IAsyncOperation<IRandomAccessStreamWithContentType> m_profilePictureReadAsync;
+	IAsyncOperation<IRandomAccessStreamWithContentType>? m_profilePictureReadAsync;
 #pragma warning restore CS0649 // Field is never assigned to, and will always have its default value null
 
 	/// <summary>
@@ -70,7 +71,7 @@ public partial class PersonPicture : Control
 	/// <summary>
 	/// The ImageSource from the Contact property.
 	/// </summary>
-	ImageSource m_contactImageSource;
+	ImageSource? m_contactImageSource;
 
 	public PersonPicture()
 	{
@@ -81,71 +82,6 @@ public partial class PersonPicture : Control
 		Unloaded += OnUnloaded;
 		SizeChanged += OnSizeChanged;
 	}
-
-#if false
-	Task<BitmapImage> LoadImageAsync(IRandomAccessStreamReference thumbStreamReference)
-	{
-		m_profilePictureReadAsync = null;
-
-		// Contact is not yet supported.
-		throw new NotSupportedException("Contact is not yet supported");
-
-		//var operation = thumbStreamReference.OpenReadAsync();
-
-		//operation.Completed(
-		//	AsyncOperationCompletedHandler<IRandomAccessStreamWithContentType>(
-		//		[strongThis, completedFunction](
-		//			IAsyncOperation<IRandomAccessStreamWithContentType> operation,
-		//			AsyncStatus asyncStatus)
-		//{
-		//	strongThis.DispatcherQueue().TryEnqueue(new DispatcherQueueHandler(
-		//		[strongThis, asyncStatus, completedFunction, operation]()
-		//	{
-		//		BitmapImage bitmap;
-
-		//		// Handle the failure case here to ensure we are on the UI thread.
-		//		if (asyncStatus != AsyncStatus.Completed)
-		//		{
-		//			strongThis.m_profilePictureReadAsync = null);
-		//			return;
-		//		}
-
-		//		try
-		//		{
-		//			bitmap.SetSourceAsync(operation.GetResults()).Completed(
-		//				AsyncActionCompletedHandler(
-		//					[strongThis, completedFunction, bitmap](IAsyncAction, AsyncStatus asyncStatus)
-		//			{
-		//				if (asyncStatus != AsyncStatus.Completed)
-		//				{
-		//					strongThis.m_profilePictureReadAsync = null);
-		//					return;
-		//				}
-
-		//				completedFunction(bitmap);
-		//				strongThis.m_profilePictureReadAsync = null);
-		//			}));
-		//		}
-		//		catch (hresult_error &e)
-		//		{
-		//			strongThis.m_profilePictureReadAsync = null);
-
-		//			// Ignore the exception if the image is invalid
-		//			if (e.to_abi() == E_INVALIDARG)
-		//			{
-		//				return;
-		//			}
-		//			else
-		//			{
-		//				throw;
-		//			}
-		//		}
-		//	}));
-		//}));
-
-		//m_profilePictureReadAsync = operation;
-	}
-#endif
 
 	protected override AutomationPeer OnCreateAutomationPeer()
 	{
@@ -184,7 +120,7 @@ public partial class PersonPicture : Control
 		}
 	}
 
-	ImageSource GetImageSource()
+	ImageSource? GetImageSource()
 	{
 		if (ProfilePicture != null)
 		{
@@ -199,7 +135,7 @@ public partial class PersonPicture : Control
 	void UpdateIfReady()
 	{
 		string initials = GetInitials();
-		ImageSource imageSrc = GetImageSource();
+		ImageSource? imageSrc = GetImageSource();
 
 		var templateSettings = TemplateSettings;
 		templateSettings.ActualInitials = initials;
@@ -494,7 +430,7 @@ public partial class PersonPicture : Control
 		m_contactDisplayNameInitials = InitialsGenerator.InitialsFromContactObject(contact);
 
 		// Order of preference (but all work): Large, Small, Source, Thumbnail
-		IRandomAccessStreamReference thumbStreamReference = null;
+		IRandomAccessStreamReference? thumbStreamReference = null;
 
 		if (PreferSmallImage && contact.SmallDisplayPicture != null)
 		{
@@ -608,11 +544,8 @@ public partial class PersonPicture : Control
 	{
 		bool isNewContact = true;
 
-		if (args != null && args.OldValue != null && args.NewValue != null)
+		if (args != null && args.OldValue is Contact oldContact && args.NewValue is Contact newContact)
 		{
-			Contact oldContact = args.OldValue as Contact;
-			Contact newContact = args.NewValue as Contact;
-
 			// Verify that the IDs are not null before comparing the old and new contact object.
 			// If both contact IDs are null, it will be treated as a newcontact.
 			if (!string.IsNullOrWhiteSpace(oldContact.Id) || !string.IsNullOrWhiteSpace(newContact.Id))
@@ -687,4 +620,69 @@ public partial class PersonPicture : Control
 			m_profilePictureReadAsync.Cancel();
 		}
 	}
+
+#if false
+	Task<BitmapImage> LoadImageAsync(IRandomAccessStreamReference thumbStreamReference)
+	{
+		m_profilePictureReadAsync = null;
+
+		// Contact is not yet supported.
+		throw new NotSupportedException("Contact is not yet supported");
+
+		//var operation = thumbStreamReference.OpenReadAsync();
+
+		//operation.Completed(
+		//	AsyncOperationCompletedHandler<IRandomAccessStreamWithContentType>(
+		//		[strongThis, completedFunction](
+		//			IAsyncOperation<IRandomAccessStreamWithContentType> operation,
+		//			AsyncStatus asyncStatus)
+		//{
+		//	strongThis.DispatcherQueue().TryEnqueue(new DispatcherQueueHandler(
+		//		[strongThis, asyncStatus, completedFunction, operation]()
+		//	{
+		//		BitmapImage bitmap;
+
+		//		// Handle the failure case here to ensure we are on the UI thread.
+		//		if (asyncStatus != AsyncStatus.Completed)
+		//		{
+		//			strongThis.m_profilePictureReadAsync = null);
+		//			return;
+		//		}
+
+		//		try
+		//		{
+		//			bitmap.SetSourceAsync(operation.GetResults()).Completed(
+		//				AsyncActionCompletedHandler(
+		//					[strongThis, completedFunction, bitmap](IAsyncAction, AsyncStatus asyncStatus)
+		//			{
+		//				if (asyncStatus != AsyncStatus.Completed)
+		//				{
+		//					strongThis.m_profilePictureReadAsync = null);
+		//					return;
+		//				}
+
+		//				completedFunction(bitmap);
+		//				strongThis.m_profilePictureReadAsync = null);
+		//			}));
+		//		}
+		//		catch (hresult_error &e)
+		//		{
+		//			strongThis.m_profilePictureReadAsync = null);
+
+		//			// Ignore the exception if the image is invalid
+		//			if (e.to_abi() == E_INVALIDARG)
+		//			{
+		//				return;
+		//			}
+		//			else
+		//			{
+		//				throw;
+		//			}
+		//		}
+		//	}));
+		//}));
+
+		//m_profilePictureReadAsync = operation;
+	}
+#endif
 }
