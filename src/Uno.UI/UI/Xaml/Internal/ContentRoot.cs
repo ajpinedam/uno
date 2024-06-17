@@ -7,10 +7,10 @@
 using System;
 using DirectUI;
 using Microsoft.UI.Content;
-using Microsoft.UI.Xaml;
-using Microsoft.UI.Xaml.Hosting;
-using Microsoft.UI.Xaml.Input;
-using Microsoft.UI.Xaml.Media;
+using Windows.UI.Xaml;
+using Windows.UI.Xaml.Hosting;
+using Windows.UI.Xaml.Input;
+using Windows.UI.Xaml.Media;
 using Uno.Disposables;
 using Uno.UI.Xaml.Core.Scaling;
 using Uno.UI.Xaml.Input;

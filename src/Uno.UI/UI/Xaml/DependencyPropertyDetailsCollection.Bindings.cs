@@ -1,14 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text;
-using Microsoft.UI.Xaml.Data;
+using Windows.UI.Xaml.Data;
 using Uno.Collections;
 using Uno.Extensions;
 using Uno.Foundation.Logging;
 using Uno.UI;
 using Uno.UI.DataBinding;
 
-namespace Microsoft.UI.Xaml
+namespace Windows.UI.Xaml
 {
 	/// <summary>
 	/// A <see cref="DependencyPropertyDetails"/> collection

@@ -5,13 +5,13 @@ using System.IO;
 using System.Runtime.InteropServices;
 using Windows.UI;
 using Microsoft.UI;
-using Microsoft.UI.Composition;
+using Windows.UI.Composition;
 using Windows.Graphics.Effects;
 using Microsoft.Graphics.Canvas;
 using System.Collections.Generic;
 using Microsoft.Graphics.Canvas.Effects;
 
-namespace Microsoft.UI.Xaml.Media;
+namespace Windows.UI.Xaml.Media;
 
 public partial class AcrylicBrush
 {

@@ -1,5 +1,5 @@
 ﻿using System.Runtime.CompilerServices;
-using Microsoft.UI.Xaml;
+using Windows.UI.Xaml;
 using Uno.UI.Xaml.Islands;
 
 namespace DirectUI;
