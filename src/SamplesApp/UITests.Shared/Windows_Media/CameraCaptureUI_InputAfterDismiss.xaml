@@ -1,0 +1,134 @@
+﻿<Page
+    x:Class="UITests.Windows_Media.CameraCaptureUI_InputAfterDismiss"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:local="using:UITests.Windows_Media"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    Background="{ThemeResource ApplicationPageBackgroundThemeBrush}"
+    mc:Ignorable="d">
+
+    <Grid Padding="16" RowSpacing="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock
+            Grid.Row="0"
+            FontWeight="Bold"
+            Text="CameraCaptureUI — input after dismiss (iPad regression repro)"
+            TextWrapping="Wrap" />
+
+        <TextBlock
+            Grid.Row="1"
+            Text="Steps: 1) Tap 'Open Camera'. 2) Cancel or take a photo. 3) After the picker dismisses, tap any of the test buttons or scroll the list. Expected: every tap logs a counter increment AND scrolling works. Bug (iPad): scrolling works but taps register zero increments."
+            TextWrapping="Wrap" />
+
+        <StackPanel
+            Grid.Row="2"
+            Orientation="Horizontal"
+            Spacing="8">
+            <Button
+                x:Name="OpenCameraButton"
+                Click="OpenCamera_Click"
+                Content="Open Camera" />
+            <Button
+                x:Name="ResetButton"
+                Click="Reset_Click"
+                Content="Reset Counters" />
+        </StackPanel>
+
+        <ScrollViewer
+            Grid.Row="3"
+            HorizontalScrollMode="Disabled"
+            VerticalScrollBarVisibility="Auto">
+            <StackPanel Spacing="6">
+                <Button
+                    HorizontalAlignment="Stretch"
+                    Click="TestButton_Click"
+                    Content="Test Button 1"
+                    Tag="1" />
+                <Button
+                    HorizontalAlignment="Stretch"
+                    Click="TestButton_Click"
+                    Content="Test Button 2"
+                    Tag="2" />
+                <Button
+                    HorizontalAlignment="Stretch"
+                    Click="TestButton_Click"
+                    Content="Test Button 3"
+                    Tag="3" />
+                <Button
+                    HorizontalAlignment="Stretch"
+                    Click="TestButton_Click"
+                    Content="Test Button 4"
+                    Tag="4" />
+                <Button
+                    HorizontalAlignment="Stretch"
+                    Click="TestButton_Click"
+                    Content="Test Button 5"
+                    Tag="5" />
+                <Button
+                    HorizontalAlignment="Stretch"
+                    Click="TestButton_Click"
+                    Content="Test Button 6"
+                    Tag="6" />
+                <Button
+                    HorizontalAlignment="Stretch"
+                    Click="TestButton_Click"
+                    Content="Test Button 7"
+                    Tag="7" />
+                <Button
+                    HorizontalAlignment="Stretch"
+                    Click="TestButton_Click"
+                    Content="Test Button 8"
+                    Tag="8" />
+                <Button
+                    HorizontalAlignment="Stretch"
+                    Click="TestButton_Click"
+                    Content="Test Button 9"
+                    Tag="9" />
+                <Button
+                    HorizontalAlignment="Stretch"
+                    Click="TestButton_Click"
+                    Content="Test Button 10"
+                    Tag="10" />
+                <Button
+                    HorizontalAlignment="Stretch"
+                    Click="TestButton_Click"
+                    Content="Test Button 11"
+                    Tag="11" />
+                <Button
+                    HorizontalAlignment="Stretch"
+                    Click="TestButton_Click"
+                    Content="Test Button 12"
+                    Tag="12" />
+            </StackPanel>
+        </ScrollViewer>
+
+        <Border
+            Grid.Row="4"
+            Padding="8"
+            Background="{ThemeResource SystemControlPageBackgroundChromeMediumLowBrush}"
+            BorderBrush="{ThemeResource SystemControlForegroundBaseLowBrush}"
+            BorderThickness="1"
+            CornerRadius="4">
+            <StackPanel Spacing="4">
+                <TextBlock
+                    x:Name="StatusText"
+                    FontFamily="Consolas"
+                    Text="Status: ready. Open the camera, then tap test buttons after dismiss."
+                    TextWrapping="Wrap" />
+                <TextBlock
+                    x:Name="TapCountText"
+                    FontFamily="Consolas"
+                    Text="Total taps registered: 0"
+                    TextWrapping="Wrap" />
+            </StackPanel>
+        </Border>
+    </Grid>
+</Page>

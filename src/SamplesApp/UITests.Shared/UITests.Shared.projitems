@@ -753,6 +753,10 @@
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
     </Page>
+    <Page Include="$(MSBuildThisFileDirectory)Windows_Media\CameraCaptureUI_InputAfterDismiss.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
     <Page Include="$(MSBuildThisFileDirectory)Windows_Media\CameraCaptureUISample.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
@@ -6404,6 +6408,9 @@
     </Compile>
     <Compile Include="$(MSBuildThisFileDirectory)Windows_Graphics_Display\DisplayInformationTests.xaml.cs">
       <DependentUpon>DisplayInformationTests.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="$(MSBuildThisFileDirectory)Windows_Media\CameraCaptureUI_InputAfterDismiss.xaml.cs">
+      <DependentUpon>CameraCaptureUI_InputAfterDismiss.xaml</DependentUpon>
     </Compile>
     <Compile Include="$(MSBuildThisFileDirectory)Windows_Media\CameraCaptureUISample.xaml.cs">
       <DependentUpon>CameraCaptureUISample.xaml</DependentUpon>
