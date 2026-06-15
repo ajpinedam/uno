@@ -1,0 +1,42 @@
+﻿<Page
+    x:Class="UITests.Windows_UI_Xaml.FocusTests.ContentDialog_AutoFocusTextBox"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:local="using:UITests.Windows_UI_Xaml.FocusTests"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    Background="{ThemeResource ApplicationPageBackgroundThemeBrush}"
+    mc:Ignorable="d">
+
+    <ScrollViewer Padding="16">
+        <StackPanel Spacing="12">
+            <TextBlock
+                FontWeight="SemiBold"
+                Text="Issue #22258 — soft keyboard on ContentDialog auto-focus"
+                TextWrapping="Wrap" />
+            <TextBlock TextWrapping="Wrap">
+                <Run Text="Manual test (touch devices / iOS Safari on WASM Skia):" />
+                <LineBreak />
+                <Run Text="1. Tap the button below to open the dialog." />
+                <LineBreak />
+                <Run Text="2. The first TextBox is the first focusable control, so it receives focus automatically when the dialog opens." />
+                <LineBreak />
+                <Run Text="Expected: the soft keyboard pops up immediately, without having to tap the TextBox." />
+                <LineBreak />
+                <Run Text="Bug: on iOS Safari the TextBox is focused but the soft keyboard stays closed." />
+                <LineBreak />
+                <Run Text="Workaround to validate: tap the second TextBox, then tap back to the first — the keyboard now opens." />
+            </TextBlock>
+
+            <Button
+                x:Name="ShowDialogButton"
+                Click="OnShowTextBoxDialog"
+                Content="Open dialog (TextBox first focusable)" />
+
+            <Button
+                x:Name="ShowPasswordDialogButton"
+                Click="OnShowPasswordDialog"
+                Content="Open dialog (PasswordBox first focusable)" />
+        </StackPanel>
+    </ScrollViewer>
+</Page>
