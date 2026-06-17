@@ -15,21 +15,15 @@
                 Text="Issue #22258 — soft keyboard on ContentDialog auto-focus"
                 TextWrapping="Wrap" />
             <TextBlock TextWrapping="Wrap">
-                <Run Text="Manual test (touch devices / iOS Safari on WASM Skia):" />
+                <Run Text="Manual test on a touch device (iOS Safari, WASM Skia):" />
                 <LineBreak />
-                <Run Text="1. Tap the button below to open the dialog." />
+                <Run Text="• Open the TextBox / PasswordBox dialog — the field is auto-focused on open and the soft keyboard should pop up immediately." />
                 <LineBreak />
-                <Run Text="2. The first TextBox is the first focusable control, so it receives focus automatically when the dialog opens." />
-                <LineBreak />
-                <Run Text="Expected: the soft keyboard pops up immediately, without having to tap the TextBox." />
-                <LineBreak />
-                <Run Text="Bug: on iOS Safari the TextBox is focused but the soft keyboard stays closed." />
-                <LineBreak />
-                <Run Text="Workaround to validate: tap the second TextBox, then tap back to the first — the keyboard now opens." />
+                <Run Text="• Open the buttons-only dialog — it has no text input, so the soft keyboard must NOT appear." />
             </TextBlock>
 
             <Button
-                x:Name="ShowDialogButton"
+                x:Name="ShowTextBoxDialogButton"
                 Click="OnShowTextBoxDialog"
                 Content="Open dialog (TextBox first focusable)" />
 
@@ -37,6 +31,11 @@
                 x:Name="ShowPasswordDialogButton"
                 Click="OnShowPasswordDialog"
                 Content="Open dialog (PasswordBox first focusable)" />
+
+            <Button
+                x:Name="ShowButtonsOnlyDialogButton"
+                Click="OnShowButtonsOnlyDialog"
+                Content="Open dialog (buttons only — no text input)" />
         </StackPanel>
     </ScrollViewer>
 </Page>
