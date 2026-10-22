@@ -12,6 +12,7 @@ using Windows.UI.Core;
 using Uno.Foundation.Logging;
 using System.Globalization;
 using System.Threading;
+using Uno.UI.Xaml;
 using Uno.UI.Xaml.Controls;
 
 using LaunchActivatedEventArgs = Microsoft.UI.Xaml.LaunchActivatedEventArgs;
@@ -49,6 +50,43 @@ namespace Microsoft.UI.Xaml
 		public override bool FinishedLaunching(UIApplication application, NSDictionary launchOptions)
 		{
 			InitializationCompleted();
+
+			// Under the scene life cycle, UIKit delivers the URL, shortcut or user activity the app launches with as
+			// the scene connects, rather than in the launch options.
+			if (!UnoUISceneDelegate.TryDeferLaunch(LaunchFromScene))
+			{
+				Launch(launchOptions);
+			}
+
+			return true;
+		}
+
+		private void LaunchFromScene(UISceneConnectionOptions connectionOptions)
+		{
+			// Rebuilds the launch options of the app life cycle, so that the app launches the same way.
+			var launchOptions = new NSMutableDictionary();
+
+			if (connectionOptions?.UrlContexts?.AnyObject is { } urlContext)
+			{
+				launchOptions[UIApplication.LaunchOptionsUrlKey] = urlContext.Url;
+			}
+#if !__TVOS__
+			if (connectionOptions?.ShortcutItem is { } shortcutItem)
+			{
+				launchOptions[UIApplication.LaunchOptionsShortcutItemKey] = shortcutItem;
+			}
+#endif
+			if (connectionOptions?.UserActivities?.AnyObject is { } userActivity)
+			{
+				launchOptions[UIApplication.LaunchOptionsUserActivityDictionaryKey] =
+					NSDictionary.FromObjectAndKey(userActivity, new NSString("UIApplicationLaunchOptionsUserActivityKey"));
+			}
+
+			Launch(launchOptions);
+		}
+
+		private void Launch(NSDictionary launchOptions)
+		{
 			var handled = false;
 			if (launchOptions != null)
 			{
@@ -89,8 +127,14 @@ namespace Microsoft.UI.Xaml
 			{
 				OnLaunched(new LaunchActivatedEventArgs());
 			}
-			return true;
 		}
+
+		// Implementing this opts the app into the scene life cycle even without a scene manifest.
+		public override UISceneConfiguration GetConfiguration(UIApplication application, UISceneSession connectingSceneSession, UISceneConnectionOptions options) =>
+			UnoUISceneDelegate.GetConfiguration(connectingSceneSession);
+
+		public override bool RespondsToSelector(Selector sel) =>
+			!UnoUISceneDelegate.IsHiddenSelector(sel) && base.RespondsToSelector(sel);
 
 		public override bool ContinueUserActivity(UIApplication application, NSUserActivity userActivity, UIApplicationRestorationHandler completionHandler) =>
 			TryHandleUniversalLinkFromUserActivity(userActivity);

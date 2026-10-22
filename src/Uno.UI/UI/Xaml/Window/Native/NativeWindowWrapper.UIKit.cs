@@ -57,6 +57,7 @@ internal class NativeWindowWrapper : NativeWindowWrapperBase, INativeWindowWrapp
 		if (MUXWindow.ContentHostOverride is null)
 		{
 			NativeWindowHelpers.TryCreateExtendedSplashScreen(_nativeWindow);
+			UnoUISceneDelegate.SetAppWindow(_nativeWindow);
 		}
 
 		SubscribeBackgroundNotifications();
@@ -79,7 +80,15 @@ internal class NativeWindowWrapper : NativeWindowWrapperBase, INativeWindowWrapp
 
 	internal RootViewController MainController => _mainController;
 
-	internal void OnNativeVisibilityChanged(bool visible) => IsVisible = visible;
+	internal void OnNativeVisibilityChanged(bool visible)
+	{
+		// The scene enters the foreground as it connects, before the window is shown: Show() must still raise
+		// the first VisibilityChanged.
+		if (WasShown)
+		{
+			IsVisible = visible;
+		}
+	}
 
 	internal void OnNativeClosed() => RaiseClosing(); // TODO: Handle closing cancellation when multiwindow is supported #13847
 
@@ -188,8 +197,16 @@ internal class NativeWindowWrapper : NativeWindowWrapperBase, INativeWindowWrapp
 		}
 	}
 
+	private bool IsForThisWindow(NSNotification notification)
+		=> UnoUISceneDelegate.IsNotificationForWindow(notification, _nativeWindow);
+
 	private void OnEnteredBackground(NSNotification notification)
 	{
+		if (!IsForThisWindow(notification))
+		{
+			return;
+		}
+
 		OnNativeVisibilityChanged(false);
 
 		Application.Current.RaiseEnteredBackground(() => Application.Current.RaiseSuspending());
@@ -197,11 +214,28 @@ internal class NativeWindowWrapper : NativeWindowWrapperBase, INativeWindowWrapp
 
 	private void OnLeavingBackground(NSNotification notification)
 	{
+		if (!IsForThisWindow(notification))
+		{
+			return;
+		}
+
 		Application.Current.RaiseResuming();
 		Application.Current.RaiseLeavingBackground(() => OnNativeVisibilityChanged(true));
 	}
 
-	private void OnActivated(NSNotification notification) => ActivationState = CoreWindowActivationState.CodeActivated;
+	private void OnActivated(NSNotification notification)
+	{
+		if (IsForThisWindow(notification))
+		{
+			ActivationState = CoreWindowActivationState.CodeActivated;
+		}
+	}
 
-	private void OnDeactivated(NSNotification notification) => ActivationState = CoreWindowActivationState.Deactivated;
+	private void OnDeactivated(NSNotification notification)
+	{
+		if (IsForThisWindow(notification))
+		{
+			ActivationState = CoreWindowActivationState.Deactivated;
+		}
+	}
 }
