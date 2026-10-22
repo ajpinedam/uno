@@ -531,4 +531,26 @@ public class Given_Window
 		Assert.AreEqual("Test title", window.Title);
 	}
 #endif
+
+#if HAS_UNO
+	[TestMethod]
+	[RunsOnUIThread]
+	[PlatformCondition(ConditionMode.Include, RuntimeTestPlatforms.SkiaIOS | RuntimeTestPlatforms.NativeIOS)]
+	public void When_Scene_Lifecycle_Window_Hosted_In_Application_Scene()
+	{
+		// The SamplesApp opts into the scene life cycle in its Info.plist. UIKit is read through reflection, as the
+		// Skia runtime tests are built without the iOS bindings.
+		static object GetProperty(object target, string name) => target?.GetType().GetProperty(name)?.GetValue(target);
+
+		var nativeWindow = Window.InitialWindow.NativeWindow;
+		var scene = GetProperty(nativeWindow, "WindowScene");
+
+		Assert.IsNotNull(scene, "The window is not shown in a scene.");
+
+		var sceneDelegate = GetProperty(scene, "Delegate");
+
+		Assert.AreEqual("UnoUISceneDelegate", sceneDelegate?.GetType().Name, "The application scene does not have the Uno scene delegate.");
+		Assert.AreSame(nativeWindow, GetProperty(sceneDelegate, "Window"));
+	}
+#endif
 }
