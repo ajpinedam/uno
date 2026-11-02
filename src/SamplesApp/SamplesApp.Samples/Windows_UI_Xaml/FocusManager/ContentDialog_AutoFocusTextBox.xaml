@@ -1,0 +1,41 @@
+﻿<Page
+    x:Class="UITests.Windows_UI_Xaml.FocusTests.ContentDialog_AutoFocusTextBox"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:local="using:UITests.Windows_UI_Xaml.FocusTests"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    Background="{ThemeResource ApplicationPageBackgroundThemeBrush}"
+    mc:Ignorable="d">
+
+    <ScrollViewer Padding="16">
+        <StackPanel Spacing="12">
+            <TextBlock
+                FontWeight="SemiBold"
+                Text="Issue #22258 — soft keyboard on ContentDialog auto-focus"
+                TextWrapping="Wrap" />
+            <TextBlock TextWrapping="Wrap">
+                <Run Text="Manual test on a touch device (iOS Safari, WASM Skia):" />
+                <LineBreak />
+                <Run Text="• Open the TextBox / PasswordBox dialog — the field is auto-focused on open and the soft keyboard should pop up immediately." />
+                <LineBreak />
+                <Run Text="• Open the buttons-only dialog — it has no text input, so the soft keyboard must NOT appear." />
+            </TextBlock>
+
+            <Button
+                x:Name="ShowTextBoxDialogButton"
+                Click="OnShowTextBoxDialog"
+                Content="Open dialog (TextBox first focusable)" />
+
+            <Button
+                x:Name="ShowPasswordDialogButton"
+                Click="OnShowPasswordDialog"
+                Content="Open dialog (PasswordBox first focusable)" />
+
+            <Button
+                x:Name="ShowButtonsOnlyDialogButton"
+                Click="OnShowButtonsOnlyDialog"
+                Content="Open dialog (buttons only — no text input)" />
+        </StackPanel>
+    </ScrollViewer>
+</Page>
